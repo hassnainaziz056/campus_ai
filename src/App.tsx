@@ -1,1720 +1,1509 @@
-import React, { useState } from 'react';
-import { BrowserRouter, Routes, Route, Link, useLocation } from 'react-router-dom';
+import React, { useState, createContext, useContext } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { 
-  LayoutDashboard, 
-  Users, 
-  CalendarCheck, 
-  GraduationCap, 
-  Bell, 
-  Settings, 
-  LogOut,
-  ChevronRight,
-  Menu,
-  X,
-  Plus,
-  Search,
-  ArrowLeft,
-  Download,
-  AlertCircle,
-  Mail,
-  Lock,
-  Filter,
-  MoreVertical,
-  CheckCircle2,
-  Clock,
-  FileText,
-  User as UserIcon,
-  PieChart as PieIcon,
-  TrendingUp,
-  BarChart3
+import {
+  LayoutDashboard, Users, CalendarCheck, GraduationCap, Bell, Settings,
+  LogOut, Menu, X, Plus, Search, Download, AlertCircle,
+  Mail, Lock, Filter, MoreVertical, CheckCircle2, FileText,
+  User as UserIcon, TrendingUp, BarChart3, Edit2, Trash2, Save, Shield, Database, Activity
 } from 'lucide-react';
 
-// --- Design System Components ---
+// ─────────────────────────────────────────────
+// TYPES
+// ─────────────────────────────────────────────
+interface User {
+  id: string; name: string; role: 'admin' | 'student';
+  studentId?: string; department?: string; attendance?: number; gpa?: number;
+}
+interface Student {
+  id: string; name: string; email: string; department: string;
+  attendance: number; gpa: number; status: string; studentId: string; batch?: string;
+}
+interface Faculty {
+  id: string; name: string; designation: string; subject: string;
+  department: string; email: string;
+}
+interface Course {
+  code: string; name: string; credits: number; facultyId: string; department: string;
+}
+interface Marks {
+  studentId: string; courseCode: string; mid: number; final: number;
+  assignment: number; quiz: number;
+}
+interface AttendanceRecord {
+  studentId: string; courseCode: string; total: number; attended: number;
+}
 
-const Card = ({ children, className = "", onClick, ...props }: { children: React.ReactNode, className?: string, onClick?: () => void, [key: string]: any }) => (
-  <div 
+// ─────────────────────────────────────────────
+// CENTRALIZED DATA
+// ─────────────────────────────────────────────
+const INITIAL_FACULTY: Faculty[] = [
+  { id: 'T01', name: 'Dr. Ahmed Khan', designation: 'Professor', subject: 'Artificial Intelligence', department: 'Computer Science', email: 'ahmed.khan@campus.edu' },
+  { id: 'T02', name: 'Sara Ali', designation: 'Assistant Professor', subject: 'Software Engineering', department: 'Computer Science', email: 'sara.ali@campus.edu' },
+  { id: 'T03', name: 'Usman Tariq', designation: 'Lecturer', subject: 'Data Structures', department: 'Computer Science', email: 'usman.tariq@campus.edu' },
+  { id: 'T04', name: 'Dr. Maria Garcia', designation: 'Professor', subject: 'Discrete Mathematics', department: 'Computer Science', email: 'm.garcia@campus.edu' },
+  { id: 'T05', name: 'Kevin Lee', designation: 'Assistant Professor', subject: 'Operating Systems', department: 'Computer Science', email: 'k.lee@campus.edu' },
+  { id: 'T06', name: 'Dr. Robert Brown', designation: 'Professor', subject: 'Thermodynamics', department: 'Mechanical Eng', email: 'r.brown@campus.edu' },
+  { id: 'T07', name: 'Linda Wilson', designation: 'Lecturer', subject: 'Business Ethics', department: 'Business Admin', email: 'l.wilson@campus.edu' },
+  { id: 'T08', name: 'Dr. Steven Wright', designation: 'Assistant Professor', subject: 'Corporate Law', department: 'Law', email: 's.wright@campus.edu' },
+  { id: 'T09', name: 'Rachel Green', designation: 'Lecturer', subject: 'Art History', department: 'Fine Arts', email: 'r.green@campus.edu' },
+  { id: 'T10', name: 'Dr. Thomas Anderson', designation: 'Professor', subject: 'Network Security', department: 'Computer Science', email: 'neo@campus.edu' },
+];
+
+const INITIAL_STUDENTS: Student[] = [
+  { id: '1', name: 'Alexander Pierce', email: 'pierce@campus.edu', department: 'Computer Science', attendance: 85, gpa: 3.8, status: 'Active', studentId: 'STD-2024-102', batch: 'Fall 2024' },
+  { id: '2', name: 'Sarah Smith', email: 'sarah.s@campus.edu', department: 'Business Admin', attendance: 92, gpa: 3.9, status: 'Active', studentId: 'STD-2024-105', batch: 'Fall 2024' },
+  { id: '3', name: 'David Miller', email: 'miller.d@campus.edu', department: 'Mechanical Eng', attendance: 78, gpa: 3.2, status: 'On Probation', studentId: 'STD-2024-110', batch: 'Fall 2024' },
+  { id: '4', name: 'Emily White', email: 'emily.w@campus.edu', department: 'Electrical Eng', attendance: 95, gpa: 4.0, status: 'Active', studentId: 'STD-2024-115', batch: 'Fall 2024' },
+  { id: '5', name: 'Michael Ross', email: 'ross.m@campus.edu', department: 'Law', attendance: 88, gpa: 3.6, status: 'Active', studentId: 'STD-2024-120', batch: 'Fall 2024' },
+  { id: '6', name: 'Jessica Day', email: 'jday@campus.edu', department: 'Fine Arts', attendance: 82, gpa: 3.5, status: 'Active', studentId: 'STD-2024-125', batch: 'Fall 2024' },
+];
+
+const ALL_COURSES: Course[] = [
+  { code: 'CS-501', name: 'Data Structures', credits: 4, facultyId: 'T03', department: 'Computer Science' },
+  { code: 'CS-502', name: 'Operating Systems', credits: 3, facultyId: 'T05', department: 'Computer Science' },
+  { code: 'CS-503', name: 'Artificial Intelligence', credits: 3, facultyId: 'T01', department: 'Computer Science' },
+  { code: 'MA-201', name: 'Discrete Mathematics', credits: 3, facultyId: 'T04', department: 'Computer Science' },
+  { code: 'CS-504', name: 'Network Security', credits: 3, facultyId: 'T10', department: 'Computer Science' },
+  { code: 'SE-401', name: 'Software Engineering', credits: 3, facultyId: 'T02', department: 'Computer Science' },
+  { code: 'ME-301', name: 'Thermodynamics', credits: 3, facultyId: 'T06', department: 'Mechanical Eng' },
+  { code: 'BA-201', name: 'Business Ethics', credits: 2, facultyId: 'T07', department: 'Business Admin' },
+  { code: 'LW-101', name: 'Corporate Law', credits: 3, facultyId: 'T08', department: 'Law' },
+  { code: 'FA-101', name: 'Art History', credits: 2, facultyId: 'T09', department: 'Fine Arts' },
+];
+
+const DEFAULT_MARKS: Marks[] = [
+  { studentId: '23k0905', courseCode: 'CS-501', mid: 26, final: 62, assignment: 13, quiz: 9 },
+  { studentId: '23k0905', courseCode: 'CS-502', mid: 22, final: 55, assignment: 11, quiz: 7 },
+  { studentId: '23k0905', courseCode: 'MA-201', mid: 28, final: 65, assignment: 14, quiz: 9 },
+  { studentId: '23k0905', courseCode: 'CS-503', mid: 20, final: 50, assignment: 10, quiz: 6 },
+  { studentId: '1', courseCode: 'CS-501', mid: 25, final: 60, assignment: 12, quiz: 8 },
+  { studentId: '1', courseCode: 'CS-502', mid: 22, final: 58, assignment: 11, quiz: 7 },
+  { studentId: '1', courseCode: 'MA-201', mid: 27, final: 63, assignment: 13, quiz: 8 },
+];
+
+const DEFAULT_ATTENDANCE: AttendanceRecord[] = [
+  { studentId: '23k0905', courseCode: 'CS-501', total: 32, attended: 30 },
+  { studentId: '23k0905', courseCode: 'CS-502', total: 28, attended: 22 },
+  { studentId: '23k0905', courseCode: 'MA-201', total: 30, attended: 29 },
+  { studentId: '23k0905', courseCode: 'CS-503', total: 26, attended: 17 },
+  { studentId: '1', courseCode: 'CS-501', total: 32, attended: 28 },
+  { studentId: '1', courseCode: 'CS-502', total: 28, attended: 24 },
+  { studentId: '1', courseCode: 'MA-201', total: 30, attended: 27 },
+];
+
+// ─────────────────────────────────────────────
+// AUTH CONTEXT
+// ─────────────────────────────────────────────
+const AuthContext = createContext<{
+  user: User | null;
+  login: (u: string, p: string) => boolean;
+  logout: () => void;
+} | null>(null);
+
+const useAuth = () => {
+  const ctx = useContext(AuthContext);
+  if (!ctx) throw new Error('useAuth outside provider');
+  return ctx;
+};
+
+// ─────────────────────────────────────────────
+// DESIGN SYSTEM COMPONENTS
+// ─────────────────────────────────────────────
+const Card = ({ children, className = '', onClick }: { children: React.ReactNode; className?: string; onClick?: () => void }) => (
+  <div
     onClick={onClick}
-    {...props}
-    className={`bg-surface rounded-xl shadow-subtle border border-gray-100 p-6 ${className} ${onClick ? 'cursor-pointer hover:shadow-card transition-shadow duration-300' : ''}`}
-  >
-    {children}
-  </div>
+    className={`bg-white rounded-2xl border border-gray-100 shadow-sm p-6 ${onClick ? 'cursor-pointer hover:shadow-md transition-shadow' : ''} ${className}`}
+  >{children}</div>
 );
 
-const Button = ({ children, variant = 'primary', className = "", fullWidth = false, ...props }: any) => {
-  const variants: any = {
-    primary: 'bg-primary text-white hover:bg-opacity-90',
-    accent: 'bg-accent text-white hover:bg-opacity-90',
-    secondary: 'bg-white border-2 border-gray-100 text-text-primary hover:bg-gray-50',
-    ghost: 'hover:bg-gray-100 text-text-secondary'
+const Btn = ({ children, variant = 'primary', className = '', fullWidth = false, ...rest }: any) => {
+  const styles: Record<string, string> = {
+    primary: 'bg-slate-800 text-white hover:bg-slate-700',
+    accent: 'bg-amber-500 text-slate-900 hover:bg-amber-400',
+    secondary: 'bg-white border border-gray-200 text-slate-700 hover:bg-gray-50',
+    ghost: 'text-slate-500 hover:bg-gray-100',
+    danger: 'bg-red-50 border border-red-200 text-red-600 hover:bg-red-100',
   };
   return (
-    <button 
-      className={`px-6 py-2.5 rounded-lg font-semibold transition-all duration-200 flex items-center justify-center gap-2 text-sm ${variants[variant]} ${fullWidth ? 'w-full' : ''} ${className}`}
-      {...props}
-    >
-      {children}
-    </button>
+    <button
+      className={`px-4 py-2 rounded-xl font-semibold text-sm flex items-center gap-2 justify-center transition-all ${styles[variant] || styles.primary} ${fullWidth ? 'w-full' : ''} ${className}`}
+      {...rest}
+    >{children}</button>
   );
 };
 
-const Input = ({ label, placeholder, icon: Icon, error, ...props }: any) => (
-  <div className="space-y-1.5 w-full">
-    {label && <label className="text-xs font-medium text-text-secondary uppercase tracking-wider">{label}</label>}
-    <div className="relative group">
-      {Icon && <Icon className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-accent transition-colors" size={18} />}
-      <input 
-        className={`w-full bg-gray-50 border ${error ? 'border-error' : 'border-gray-200 focus:border-accent'} rounded-lg py-2.5 ${Icon ? 'pl-10' : 'px-4'} pr-4 text-sm outline-none transition-all duration-200`}
-        placeholder={placeholder}
-        {...props}
+const Inp = ({ label, icon: Icon, error, ...rest }: any) => (
+  <div className="space-y-1">
+    {label && <label className="text-[11px] font-bold uppercase tracking-wider text-slate-500">{label}</label>}
+    <div className="relative">
+      {Icon && <Icon className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />}
+      <input
+        className={`w-full bg-gray-50 border ${error ? 'border-red-300' : 'border-gray-200 focus:border-amber-400'} rounded-xl py-2.5 ${Icon ? 'pl-9' : 'px-4'} pr-4 text-sm outline-none transition-colors`}
+        {...rest}
       />
     </div>
-    {error && <p className="text-[10px] text-error font-medium">{error}</p>}
+    {error && <p className="text-[11px] text-red-500">{error}</p>}
   </div>
 );
 
-const Badge = ({ variant = 'default', children, className = "" }: { variant?: 'success' | 'warning' | 'error' | 'default', children: React.ReactNode, className?: string }) => {
-  const styles = {
-    success: 'bg-success/10 text-success',
-    warning: 'bg-warning/10 text-warning',
-    error: 'bg-error/10 text-error',
-    default: 'bg-gray-100 text-gray-500'
+const Badge = ({ variant = 'default', children }: { variant?: string; children: React.ReactNode }) => {
+  const styles: Record<string, string> = {
+    success: 'bg-emerald-50 text-emerald-700',
+    warning: 'bg-amber-50 text-amber-700',
+    error: 'bg-red-50 text-red-600',
+    info: 'bg-blue-50 text-blue-700',
+    default: 'bg-gray-100 text-gray-600',
+    accent: 'bg-amber-100 text-amber-800',
   };
   return (
-    <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${styles[variant]} ${className}`}>
+    <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wide ${styles[variant] || styles.default}`}>
       {children}
     </span>
   );
 };
 
-const Switch = ({ enabled, onChange }: { enabled: boolean, onChange: (val: boolean) => void }) => (
-    <button 
-        onClick={() => onChange(!enabled)}
-        className={`w-12 h-6 rounded-full relative transition-colors duration-300 ${enabled ? 'bg-accent' : 'bg-gray-200'}`}
-    >
-        <div className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full shadow-sm transition-transform duration-300 ${enabled ? 'translate-x-6' : 'translate-x-0'}`} />
-    </button>
-);
-
-// --- Screen Components ---
-
-const LoginScreen = () => (
-  <div className="min-h-screen flex items-center justify-center bg-bg p-6">
-    <motion.div 
-      initial={{ opacity: 0, scale: 0.95 }}
-      animate={{ opacity: 1, scale: 1 }}
-      className="w-full max-w-md"
-    >
-      <Card className="p-10 shadow-2xl">
-        <div className="text-center mb-10">
-          <div className="w-16 h-16 bg-primary rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg">
-            <GraduationCap className="text-accent" size={32} strokeWidth={2} />
-          </div>
-          <h1 className="text-2xl font-display font-bold text-primary">Campus AI</h1>
-          <p className="text-text-secondary text-sm mt-1">Smart Student Management System</p>
-        </div>
-        
-        <div className="space-y-5">
-          <Input label="Email Address" placeholder="name@campus.edu" icon={Mail} />
-          <Input label="Password" type="password" placeholder="••••••••" icon={Lock} />
-          
-          <div className="flex justify-end">
-            <Link to="/forgot-password" title="Restore lost password" className="text-accent text-xs font-semibold hover:underline">Forgot Password?</Link>
-          </div>
-          
-          <Link to="/dashboard" className="block">
-            <Button variant="accent" fullWidth>Login to Workspace</Button>
-          </Link>
-        </div>
-        
-        <div className="mt-8 text-center text-xs text-text-secondary">
-          Not a staff member? <span className="text-accent font-bold cursor-pointer underline">Request Access</span>
-        </div>
-      </Card>
-    </motion.div>
-  </div>
-);
-
-const ForgotPassword = () => (
-  <div className="min-h-screen flex items-center justify-center bg-bg p-6">
-    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-md">
-      <Card className="p-10 shadow-2xl">
-        <Link to="/" className="inline-flex items-center gap-2 text-xs font-bold text-accent mb-8 hover:gap-3 transition-all">
-          <ArrowLeft size={16} /> Back to Login
-        </Link>
-        <h1 className="text-2xl font-display font-bold text-primary mb-2">Reset Password</h1>
-        <p className="text-text-secondary text-sm mb-8 italic">Enter your institution email to receive recovery instructions.</p>
-        <div className="space-y-6">
-          <Input label="Staff Email" placeholder="name@campus.edu" icon={Mail} />
-          <Button variant="accent" fullWidth>Request Reset Link</Button>
-        </div>
-      </Card>
-    </motion.div>
-  </div>
-);
-
-const StudentProfileView = () => {
-    const [activeTab, setActiveTab] = useState('Overview');
-    return (
-        <div className="space-y-8">
-            <div className="flex items-center gap-4">
-                <Link to="/students" className="p-2 hover:bg-gray-100 rounded-full transition-colors"><ArrowLeft size={20} /></Link>
-                <h1 className="text-2xl font-bold">Student Profile</h1>
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-                <Card className="lg:col-span-1 text-center py-10">
-                    <div className="w-32 h-32 bg-primary rounded-full mx-auto mb-6 flex items-center justify-center border-4 border-gray-50 shadow-lg">
-                        <UserIcon size={48} className="text-accent" />
-                    </div>
-                    <h2 className="text-xl font-bold text-primary">Alexander Pierce</h2>
-                    <p className="text-xs font-bold text-accent uppercase tracking-widest mt-1">STD-2024-102</p>
-                    <div className="mt-8 flex flex-col gap-3">
-                        <Link to="/students/add"><Button variant="secondary" fullWidth className="text-xs py-2">Edit Data</Button></Link>
-                        <Button variant="ghost" fullWidth className="text-xs py-2">Message Center</Button>
-                    </div>
-                </Card>
-
-                <div className="lg:col-span-3 space-y-6">
-                    <div className="flex border-b border-gray-100 bg-white p-1 rounded-t-xl">
-                        {['Overview', 'Attendance', 'Performance'].map(tab => (
-                            <button
-                                key={tab}
-                                onClick={() => setActiveTab(tab)}
-                                className={`px-8 py-3 text-xs font-bold uppercase tracking-widest transition-all rounded-lg ${activeTab === tab ? 'bg-primary text-white shadow-lg' : 'text-text-secondary hover:bg-gray-50'}`}
-                            >
-                                {tab}
-                            </button>
-                        ))}
-                    </div>
-
-                    <Card>
-                        {activeTab === 'Overview' && (
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                                {[
-                                    { label: 'Full Name', value: 'Alexander Pierce' },
-                                    { label: 'Department', value: 'Computer Science' },
-                                    { label: 'Batch/Year', value: '2024 / Senior' },
-                                    { label: 'Contact', value: '+1 (555) 000-0000' },
-                                    { label: 'Guardian', value: 'John Pierce' },
-                                    { label: 'Address', value: 'Campus Dorm #12, Building B' },
-                                ].map(info => (
-                                    <div key={info.label}>
-                                        <label className="text-[10px] font-bold text-text-secondary uppercase tracking-widest">{info.label}</label>
-                                        <p className="text-sm font-semibold mt-1 p-3 bg-bg rounded-lg border border-gray-50">{info.value}</p>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                        {activeTab === 'Attendance' && (
-                            <div className="space-y-6">
-                                <div className="flex justify-between items-center px-1">
-                                    <h3 className="font-bold text-primary">Attendance History (Current Term)</h3>
-                                    <Badge variant="success">98.5% Consistency</Badge>
-                                </div>
-                                <div className="overflow-hidden rounded-xl border border-gray-100">
-                                    <table className="w-full text-left text-xs">
-                                        <thead className="bg-gray-50 uppercase font-black tracking-widest text-text-secondary border-b border-gray-100">
-                                            <tr>
-                                                <th className="px-6 py-4">Date</th>
-                                                <th className="px-6 py-4">Status</th>
-                                                <th className="px-6 py-4">Subject</th>
-                                                <th className="px-6 py-4">Verification</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-gray-50">
-                                            {[
-                                                { date: '2026-04-25', status: 'Present', sub: 'CS-501', mode: 'Biometric' },
-                                                { date: '2026-04-24', status: 'Present', sub: 'CS-502', mode: 'Manual' },
-                                                { date: '2026-04-23', status: 'Late', sub: 'MA-201', mode: 'Biometric' },
-                                                { date: '2026-04-22', status: 'Present', sub: 'CS-501', mode: 'Biometric' },
-                                                { date: '2026-04-21', status: 'Absent', sub: 'HU-101', mode: 'System' },
-                                            ].map((log, i) => (
-                                                <tr key={i} className="hover:bg-bg transition-colors">
-                                                    <td className="px-6 py-4 font-mono font-bold text-primary">{log.date}</td>
-                                                    <td className="px-6 py-4">
-                                                        <Badge variant={log.status === 'Present' ? 'success' : log.status === 'Late' ? 'warning' : 'error'}>
-                                                            {log.status}
-                                                        </Badge>
-                                                    </td>
-                                                    <td className="px-6 py-4 font-bold">{log.sub}</td>
-                                                    <td className="px-6 py-4 text-text-secondary italic">{log.mode}</td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                </div>
-                                <Button variant="ghost" fullWidth className="text-[10px] uppercase font-black">Download Detailed Logs</Button>
-                            </div>
-                        )}
-                        {activeTab === 'Performance' && (
-                            <div className="space-y-6">
-                                <div className="flex justify-between items-center">
-                                    <h3 className="font-bold">GPA Trend</h3>
-                                    <Link to="/report"><Button variant="secondary" className="text-xs py-1.5"><Download size={14} /> Full Report</Button></Link>
-                                </div>
-                                <div className="h-48 border-b border-l border-gray-50 relative flex items-end px-4">
-                                     <svg className="absolute inset-0 w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none">
-                                        <polyline points="0,80 25,60 50,45 75,30 100,15" fill="none" stroke="#C9A84C" strokeWidth="2" strokeDasharray="5,5" />
-                                        <polyline points="0,90 25,70 50,75 75,40 100,20" fill="none" stroke="#1A1A2E" strokeWidth="3" />
-                                     </svg>
-                                </div>
-                            </div>
-                        )}
-                    </Card>
-                </div>
-            </div>
-        </div>
-    );
-};
-
-const MarkAttendance = ({ students, onUpdate }: { students: any[], onUpdate: (id: string, updates: any) => void }) => {
-    const navigate = useNavigate();
-    const [marks, setMarks] = useState<Record<string, 'P' | 'L' | 'A'>>({});
-
-    const handleMark = (id: string, status: 'P' | 'L' | 'A') => {
-        setMarks(prev => ({ ...prev, [id]: status }));
-    };
-
-    const handleSubmit = () => {
-        // Logic to update student attendance percentage in a real app would be complex
-        // For this demo, we'll just slightly adjust their percentage based on marks
-        students.forEach(student => {
-            const mark = marks[student.id];
-            if (mark === 'A') {
-                onUpdate(student.id, { attendance: Math.max(0, student.attendance - 2) });
-            } else if (mark === 'P') {
-                onUpdate(student.id, { attendance: Math.min(100, student.attendance + 1) });
-            }
-        });
-        navigate('/attendance');
-    };
-
-    return (
-    <div className="max-w-4xl mx-auto space-y-8">
-        <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-                <Link to="/attendance" className="p-2 hover:bg-gray-100 rounded-full transition-colors"><ArrowLeft size={20} /></Link>
-                <h1 className="text-2xl font-bold">Mark Attendance</h1>
-            </div>
-            <div className="text-xs font-bold bg-primary text-accent px-4 py-1.5 rounded-full uppercase tracking-widest shadow-sm">
-                Session: {new Date().toLocaleDateString()}
-            </div>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <Card className="p-4"><Input label="Subject" value="Operating Systems" readOnly /></Card>
-            <Card className="p-4"><Input label="Class" value="CS-10A" readOnly /></Card>
-            <Card className="p-4"><Input label="Total Students" value={students.length} readOnly /></Card>
-        </div>
-
-        <Card className="p-0 overflow-hidden">
-            <div className="bg-gray-50 p-6 border-b border-gray-100 flex justify-between items-center">
-                 <h3 className="font-bold text-sm uppercase tracking-wider">Student Register</h3>
-                 <div className="flex gap-6">
-                    <div className="flex items-center gap-2 text-[10px] uppercase font-bold"><div className="w-3 h-3 bg-success rounded-full" /> Present</div>
-                    <div className="flex items-center gap-2 text-[10px] uppercase font-bold"><div className="w-3 h-3 bg-error rounded-full" /> Absent</div>
-                 </div>
-            </div>
-            <div className="divide-y divide-gray-50 max-h-[600px] overflow-y-auto">
-                {students.map((student, i) => (
-                    <div key={student.id} className="p-4 flex items-center justify-between hover:bg-bg transition-colors">
-                        <div className="flex items-center gap-4">
-                            <div className="w-10 h-10 rounded-xl bg-gray-100 items-center justify-center flex font-bold text-gray-400">#{i+1}</div>
-                            <div className="font-bold text-sm">{student.name}</div>
-                        </div>
-                        <div className="flex gap-2">
-                             {['P', 'L', 'A'].map(status => (
-                                 <button 
-                                    key={status}
-                                    title={`Mark as ${status === 'P' ? 'Present' : status === 'L' ? 'Late' : 'Absent'}`}
-                                    onClick={() => handleMark(student.id, status as any)}
-                                    className={`w-10 h-10 rounded-lg flex items-center justify-center font-bold text-xs border transition-all ${
-                                        marks[student.id] === status ? 
-                                        (status === 'P' ? 'bg-success text-white border-success shadow-lg scale-110' :
-                                         status === 'A' ? 'bg-error text-white border-error shadow-lg scale-110' :
-                                         'bg-warning text-white border-warning shadow-lg scale-110') :
-                                        'bg-white text-gray-300 border-gray-200 hover:border-accent'
-                                    }`}
-                                 >
-                                    {status}
-                                 </button>
-                             ))}
-                        </div>
-                    </div>
-                ))}
-            </div>
-        </Card>
-
-        <div className="flex justify-end gap-x-4">
-            <Link to="/attendance"><Button variant="secondary">Discard</Button></Link>
-            <Button variant="accent" className="px-12" onClick={handleSubmit}>Submit Attendance</Button>
-        </div>
-    </div>
-);
-};
-
-const SubjectPerformance = () => (
-    <div className="space-y-8">
-        <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-                <Link to="/grades" className="p-2 hover:bg-gray-100 rounded-full transition-colors"><ArrowLeft size={20} /></Link>
-                <div>
-                    <h1 className="text-2xl font-bold text-primary">CS-501: Data Structures</h1>
-                    <p className="text-xs text-text-secondary font-bold uppercase tracking-widest mt-1">Academic Year 2025-26 • Term 1</p>
-                </div>
-            </div>
-            <div className="flex gap-3">
-                <Button variant="secondary" className="text-xs"><Download size={14} /> Subject Syllabus</Button>
-                <Button variant="accent" className="text-xs">Full Academic Audit</Button>
-            </div>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-            <Card className="lg:col-span-3">
-                 <div className="flex justify-between items-center mb-10">
-                    <h3 className="font-bold text-lg uppercase tracking-widest text-primary">Term Performance Map</h3>
-                    <div className="flex gap-4">
-                        <div className="flex items-center gap-2 text-[10px] font-bold uppercase"><div className="w-2 h-2 bg-accent rounded-full" /> Student</div>
-                        <div className="flex items-center gap-2 text-[10px] font-bold uppercase"><div className="w-2 h-2 bg-primary/20 rounded-full" /> Class Avg</div>
-                    </div>
-                 </div>
-                 
-                 <div className="h-72 border-b border-l border-gray-100 flex items-end px-8 relative gap-x-8 md:gap-x-12">
-                    {[
-                        { label: 'Quiz 1', student: 88, avg: 72 },
-                        { label: 'Quiz 2', student: 65, avg: 68 },
-                        { label: 'Quiz 3', student: 94, avg: 75 },
-                        { label: 'Quiz 4', student: 82, avg: 70 },
-                        { label: 'Mid-Term', student: 85, avg: 74 },
-                    ].map((quiz, i) => (
-                        <div key={i} className="flex-1 flex flex-col items-center group">
-                            <div className="w-full flex items-end justify-center gap-1.5 h-full relative">
-                                <motion.div 
-                                    initial={{ height: 0 }} 
-                                    animate={{ height: `${quiz.avg}%` }} 
-                                    className="w-4 bg-primary/10 rounded-t-lg transition-colors group-hover:bg-primary/20"
-                                />
-                                <motion.div 
-                                    initial={{ height: 0 }} 
-                                    animate={{ height: `${quiz.student}%` }} 
-                                    className="w-4 bg-accent rounded-t-lg shadow-lg relative"
-                                >
-                                    <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-primary text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-                                        {quiz.student}%
-                                    </div>
-                                </motion.div>
-                            </div>
-                            <span className="text-[10px] font-black uppercase mt-6 text-text-secondary whitespace-nowrap">{quiz.label}</span>
-                        </div>
-                    ))}
-                 </div>
-            </Card>
-            
-            <div className="space-y-6">
-                <Card className="bg-primary text-white">
-                    <h4 className="text-[10px] font-bold uppercase tracking-[0.3em] opacity-60 mb-2">Current Standing</h4>
-                    <p className="text-4xl font-black text-accent">Top 5%</p>
-                    <p className="text-xs mt-4 italic opacity-80 leading-relaxed">Consistently outperforming the class mean by 14.2% across all technical quizzes.</p>
-                </Card>
-                
-                <Card className="p-4">
-                    <h4 className="text-[10px] font-bold uppercase tracking-widest text-text-secondary mb-4">Quiz Difficulty Matrix</h4>
-                    <div className="space-y-4">
-                         {['Most Challenging: Quiz 2', 'Highest Scoring: Quiz 3'].map((item, i) => (
-                             <div key={i} className="flex items-center gap-3">
-                                 <div className={`w-2 h-2 rounded-full ${i === 0 ? 'bg-error' : 'bg-success'}`} />
-                                 <span className="text-[10px] font-bold uppercase text-primary">{item}</span>
-                             </div>
-                         ))}
-                    </div>
-                </Card>
-            </div>
-        </div>
-
-        <Card className="mt-8">
-             <h3 className="font-bold text-lg uppercase tracking-widest text-primary mb-10">Subject Grade Distribution</h3>
-             <div className="h-48 flex items-end gap-x-4 px-4 border-b border-gray-100">
-                {[
-                    { grade: 'F', count: 23, color: 'bg-error/30' },
-                    { grade: 'D', count: 50, color: 'bg-warning/30' },
-                    { grade: 'C', count: 85, color: 'bg-primary/20' },
-                    { grade: 'B', count: 120, color: 'bg-primary/20' },
-                    { grade: 'B+', count: 95, color: 'bg-accent' },
-                    { grade: 'A-', count: 60, color: 'bg-primary/20' },
-                    { grade: 'A', count: 35, color: 'bg-primary/20' },
-                ].map((data, i) => {
-                    const maxHeight = 120;
-                    const h = (data.count / maxHeight) * 100;
-                    return (
-                        <div key={i} className="flex-1 flex flex-col items-center gap-4 h-full justify-end">
-                            <motion.div 
-                                initial={{ height: 0 }}
-                                animate={{ height: `${h}%` }}
-                                className={`w-full rounded-t-lg group relative ${data.color} hover:brightness-110 transition-all`}
-                            >
-                                <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-primary text-white px-2 py-1 rounded text-[10px] font-bold opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap shadow-md">
-                                    {data.count} Students
-                                </div>
-                            </motion.div>
-                            <span className="text-[10px] font-black uppercase text-text-secondary pb-2">{data.grade}</span>
-                        </div>
-                    )
-                })}
-             </div>
-        </Card>
-    </div>
-);
-
-const NotificationList = () => {
-    const [activeTab, setActiveTab] = useState('All');
-
-    const notifications = [
-        {
-            id: 1,
-            category: 'Attendance',
-            title: 'Academic Alert: Class Attendance Below Threshold',
-            time: '2h ago',
-            desc: 'Class BBA-12 has reported an average attendance of 62% for the ongoing week. Review faculty logs immediately.',
-            unread: true
-        },
-        {
-            id: 2,
-            category: 'Grades',
-            title: 'Grade Submission Reminder: CS-501',
-            time: '5h ago',
-            desc: 'The deadline for submitting mid-term grades for Data Structures (CS-501) is tomorrow at 5:00 PM.',
-            unread: true
-        },
-        {
-            id: 3,
-            category: 'System',
-            title: 'System Maintenance Scheduled',
-            time: '1d ago',
-            desc: 'Campus AI portals will be offline for scheduled maintenance this Saturday from 2:00 AM to 4:00 AM.',
-            unread: false
-        },
-        {
-            id: 4,
-            category: 'Attendance',
-            title: 'Attendance Discrepancy Flagged',
-            time: '1d ago',
-            desc: 'Multiple students in MA-201 reported biometrics failure. Manual override may be required.',
-            unread: false
-        },
-        {
-            id: 5,
-            category: 'Grades',
-            title: 'Performance Report Generated',
-            time: '2d ago',
-            desc: 'The monthly performance analytics report for the Engineering department is now available for download.',
-            unread: false
-        }
-    ];
-
-    const filteredNotifications = activeTab === 'All' 
-        ? notifications 
-        : notifications.filter(n => n.category === activeTab);
-
-    return (
-        <div className="max-w-3xl mx-auto space-y-8">
-            <div className="flex justify-between items-center">
-                <h1 className="text-2xl font-bold">Notifications</h1>
-                <Button variant="ghost" className="text-xs font-bold uppercase">Mark All Read</Button>
-            </div>
-
-            <div className="flex gap-2 p-1 bg-white rounded-xl shadow-subtle mb-6 overflow-x-auto">
-                {['All', 'Attendance', 'Grades', 'System'].map((tab) => (
-                    <button 
-                        key={tab} 
-                        onClick={() => setActiveTab(tab)}
-                        className={`px-6 py-2 text-[10px] font-bold uppercase tracking-widest rounded-lg transition-all whitespace-nowrap ${activeTab === tab ? 'bg-primary text-white shadow-md' : 'text-text-secondary hover:bg-gray-50'}`}
-                    >
-                        {tab}
-                    </button>
-                ))}
-            </div>
-
-            <div className="space-y-4">
-                <AnimatePresence mode="popLayout">
-                    {filteredNotifications.map((notification) => (
-                        <motion.div
-                            key={notification.id}
-                            initial={{ opacity: 0, scale: 0.95 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            exit={{ opacity: 0, scale: 0.95 }}
-                            layout
-                        >
-                            <Card className={`p-4 flex gap-6 hover:border-accent transition-all cursor-pointer group ${notification.unread ? 'border-l-4 border-l-accent' : ''}`}>
-                                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 shadow-sm ${notification.unread ? 'bg-primary text-accent' : 'bg-gray-50 text-gray-400'}`}>
-                                    <Bell size={20} strokeWidth={2.5} />
-                                </div>
-                                <div className="flex-1">
-                                    <div className="flex justify-between items-start mb-1">
-                                        <h4 className="font-bold text-sm text-primary group-hover:text-accent transition-colors">{notification.title}</h4>
-                                        <span className="text-[10px] font-mono font-bold text-text-secondary uppercase">{notification.time}</span>
-                                    </div>
-                                    <p className="text-xs text-text-secondary leading-relaxed">{notification.desc}</p>
-                                    <div className="mt-2 text-[8px] font-black uppercase tracking-widest text-accent opacity-60">
-                                        Category: {notification.category}
-                                    </div>
-                                </div>
-                            </Card>
-                        </motion.div>
-                    ))}
-                    {filteredNotifications.length === 0 && (
-                        <motion.div 
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            className="text-center py-20"
-                        >
-                            <p className="text-sm text-text-secondary italic">No notifications found in this category.</p>
-                        </motion.div>
-                    )}
-                </AnimatePresence>
-            </div>
-        </div>
-    );
-};
-
-const SettingsPage = () => {
-    const [activeSection, setActiveSection] = useState('Profile Settings');
-
-    const sections = ['Profile Settings', 'Privacy & Security', 'Notification Config', 'Data & Integration', 'Billing'];
-
-    return (
-        <div className="max-w-5xl mx-auto space-y-8">
-            <h1 className="text-2xl font-bold">System Settings</h1>
-
-            <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-                <div className="lg:col-span-1">
-                     <div className="bg-white rounded-2xl shadow-subtle overflow-hidden p-2">
-                        {sections.map((s) => (
-                            <button 
-                                key={s} 
-                                onClick={() => setActiveSection(s)} 
-                                className={`w-full text-left px-6 py-4 text-[10px] font-bold uppercase tracking-[0.2em] rounded-xl transition-all ${activeSection === s ? 'bg-primary text-white shadow-lg' : 'text-text-secondary hover:bg-gray-50 hover:pl-8'}`}
-                            >
-                                {s}
-                            </button>
-                        ))}
-                     </div>
-                </div>
-
-                <div className="lg:col-span-3">
-                    <AnimatePresence mode="wait">
-                        <motion.div
-                            key={activeSection}
-                            initial={{ opacity: 0, y: 10 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: -10 }}
-                            transition={{ duration: 0.2 }}
-                        >
-                            {activeSection === 'Profile Settings' && <ProfileSettings />}
-                            {activeSection === 'Privacy & Security' && <PrivacySettings />}
-                            {activeSection === 'Notification Config' && <NotificationConfigSection />}
-                            {activeSection === 'Data & Integration' && <DataIntegrationSettings />}
-                            {activeSection === 'Billing' && <BillingSettings />}
-                        </motion.div>
-                    </AnimatePresence>
-                </div>
-            </div>
-        </div>
-    );
-};
-
-const ProfileSettings = () => (
-    <Card className="space-y-10">
-        <div className="border-b border-gray-50 pb-8">
-            <h3 className="font-bold text-lg mb-6 text-primary uppercase tracking-widest">Staff Profile</h3>
-            <div className="flex items-center gap-8">
-                <div className="w-24 h-24 bg-primary text-accent flex items-center justify-center rounded-2xl relative shadow-xl">
-                    <UserIcon size={40} />
-                    <div className="absolute -bottom-2 -right-2 w-8 h-8 bg-accent rounded-lg border-4 border-white flex items-center justify-center shadow-lg cursor-pointer hover:scale-110 transition-transform">
-                        <Plus size={14} className="text-primary" />
-                    </div>
-                </div>
-                <div>
-                        <p className="font-bold text-primary">John Doe</p>
-                        <p className="text-xs text-text-secondary mt-1 tracking-wide uppercase font-black">Head of Informatics Division</p>
-                        <Badge variant="success" className="mt-4 inline-block">Verified Admin</Badge>
-                </div>
-            </div>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <Input label="Display Name" placeholder="John Doe" />
-            <Input label="Institutional Email" placeholder="doe.j@campus.edu" readOnly />
-            <Input label="Designation" placeholder="HOD Computer Science" />
-            <Input label="Base Office" placeholder="Block B, Office 302" />
-        </div>
-
-        <div className="pt-8 flex justify-end gap-4 border-t border-gray-50">
-            <Button variant="secondary">Reset Defaults</Button>
-            <Button variant="primary" className="px-10">Save Configuration</Button>
-        </div>
-    </Card>
-);
-
-const PrivacySettings = () => {
-    const [tfa, setTfa] = useState(true);
-    return (
-        <Card className="space-y-10">
-            <div className="border-b border-gray-50 pb-8 flex justify-between items-center">
-                <div>
-                    <h3 className="font-bold text-lg text-primary uppercase tracking-widest">Privacy & Security</h3>
-                    <p className="text-xs text-text-secondary mt-1">Manage your account access and credentials.</p>
-                </div>
-                <div className="text-right">
-                    <p className="text-[10px] font-black uppercase text-text-secondary mb-1">Security Score</p>
-                    <Badge variant="success">High</Badge>
-                </div>
-            </div>
-
-            <div className="space-y-6">
-                <div className="flex items-center justify-between p-6 bg-bg rounded-2xl border border-gray-100">
-                    <div className="flex items-center gap-6">
-                        <div className="p-3 bg-white rounded-xl shadow-sm"><Lock size={20} className="text-accent" /></div>
-                        <div>
-                            <h4 className="font-bold text-sm text-primary">Two-Factor Authentication</h4>
-                            <p className="text-xs text-text-secondary italic">Ensure extra layer of security via mobile code.</p>
-                        </div>
-                    </div>
-                    <Switch enabled={tfa} onChange={setTfa} />
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                    <div className="space-y-4">
-                        <h4 className="text-[10px] font-black uppercase tracking-widest text-text-secondary">Credentials Recovery</h4>
-                        <Input label="Current Password" type="password" placeholder="••••••••" />
-                        <Input label="New Password" type="password" placeholder="••••••••" />
-                        <Button variant="primary" className="w-full">Update Password</Button>
-                    </div>
-                    <div className="space-y-4">
-                        <h4 className="text-[10px] font-black uppercase tracking-widest text-text-secondary">Identity Management</h4>
-                        <Input label="Global Username" placeholder="jdoe_campus" />
-                        <p className="text-[10px] text-text-secondary italic">Your username is used for internal staff mentions and logging.</p>
-                        <Button variant="secondary" className="w-full">Rename Identity</Button>
-                    </div>
-                </div>
-            </div>
-        </Card>
-    );
-};
-
-const NotificationConfigSection = () => (
-    <Card className="divide-y divide-gray-50 p-0 overflow-hidden">
-        {[
-            { title: 'Academic Performance Alerts', desc: 'Real-time push for grade drops or failing marks.', status: true },
-            { title: 'Attendance System Logs', desc: 'Daily summary of student presence and absences.', status: true },
-            { title: 'Institution Announcements', desc: 'Critical policy updates and campus-wide news.', status: false },
-            { title: 'Staff Direct Messages', desc: 'Internal communication between faculty members.', status: true },
-        ].map(item => (
-            <div key={item.title} className="p-8 flex items-center justify-between hover:bg-gray-50 transition-colors">
-                <div>
-                    <h4 className="font-bold text-sm text-primary mb-1 tracking-tight">{item.title}</h4>
-                    <p className="text-xs text-text-secondary italic font-medium">{item.desc}</p>
-                </div>
-                <div className="flex gap-2 p-1 bg-bg rounded-lg border border-gray-100">
-                    <button className={`px-4 py-1.5 text-[10px] font-black uppercase rounded-md transition-all ${!item.status ? 'bg-white shadow-sm text-primary' : 'text-text-secondary hover:text-primary'}`}>OFF</button>
-                    <button className={`px-4 py-1.5 text-[10px] font-black uppercase rounded-md transition-all ${item.status ? 'bg-primary text-white shadow-lg' : 'text-text-secondary hover:text-primary'}`}>ON</button>
-                </div>
-            </div>
-        ))}
-    </Card>
-);
-
-const DataIntegrationSettings = () => (
-    <Card className="space-y-10">
-        <div className="border-b border-gray-50 pb-8">
-            <h3 className="font-bold text-lg text-primary uppercase tracking-widest">Data Integrity</h3>
-            <p className="text-xs text-text-secondary mt-1 leading-relaxed">System-wide data health, backups, and cross-module consistency checks.</p>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <div className="p-8 bg-bg rounded-2xl border border-gray-100 space-y-6">
-                <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 bg-success/10 text-success rounded-xl flex items-center justify-center"><CheckCircle2 size={20} /></div>
-                    <h4 className="font-bold text-sm text-primary">System Backups</h4>
-                </div>
-                <p className="text-xs text-text-secondary italic">Last integrity sync: <span className="font-bold text-primary">2 hours ago</span></p>
-                <div className="flex gap-3">
-                    <Button variant="primary" className="text-xs py-2">Initialize Backup</Button>
-                    <Button variant="secondary" className="text-xs py-2">Logs</Button>
-                </div>
-            </div>
-
-            <div className="p-8 bg-bg rounded-2xl border border-gray-100 space-y-6">
-                <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 bg-accent/10 text-accent rounded-xl flex items-center justify-center"><AlertCircle size={20} /></div>
-                    <h4 className="font-bold text-sm text-primary">Integrity Scrub</h4>
-                </div>
-                <p className="text-xs text-text-secondary italic">Analyze 14,203 student records for inconsistent descriptors.</p>
-                <Button variant="accent" className="w-full text-xs">Run Deep Validation</Button>
-            </div>
-        </div>
-
-        <div className="pt-8 border-t border-gray-50 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-                <div className="w-2 h-2 bg-success rounded-full" />
-                <span className="text-[10px] font-black uppercase text-text-secondary">Cloud Sync: Active (Standard)</span>
-            </div>
-            <Button variant="ghost" className="text-xs text-accent">Modify Storage Strategy</Button>
-        </div>
-    </Card>
-);
-
-const BillingSettings = () => (
-    <Card className="p-0 overflow-hidden">
-        <div className="p-10 bg-primary text-white">
-            <div className="flex justify-between items-start">
-                <div>
-                    <Badge variant="warning" className="mb-4">Institution Plan</Badge>
-                    <h3 className="text-3xl font-black text-accent uppercase tracking-tighter">Enterprise</h3>
-                    <p className="text-xs opacity-60 mt-1 uppercase font-bold tracking-widest">Active since Jan 2024</p>
-                </div>
-                <div className="text-right">
-                    <p className="text-[10px] font-black uppercase opacity-40 mb-1">Seats Used</p>
-                    <p className="text-2xl font-bold">42 / 100</p>
-                </div>
-            </div>
-            
-            <div className="mt-10 flex gap-4">
-                <Button variant="accent" className="px-8 shadow-xl">Upgrade Capacity</Button>
-                <Button variant="secondary" className="bg-transparent border-white/20 text-white hover:bg-white/10">Invoicing Center</Button>
-            </div>
-        </div>
-
-        <div className="p-10 space-y-8">
-            <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-text-secondary">Available Subscriptions</h4>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {[
-                    { name: 'Academic Lite', price: '$49', desc: 'Up to 500 students, core SIS modules only.', current: false },
-                    { name: 'Research Pro', price: '$199', desc: '10k+ students, custom AI analytics & reporting.', current: false },
-                ].map(plan => (
-                    <div key={plan.name} className="p-6 rounded-2xl border border-gray-100 hover:border-accent transition-all group">
-                        <div className="flex justify-between items-center mb-4">
-                            <span className="font-bold text-primary group-hover:text-accent transition-colors">{plan.name}</span>
-                            <span className="font-black text-lg text-primary">{plan.price}</span>
-                        </div>
-                        <p className="text-xs text-text-secondary italic mb-6 leading-relaxed">{plan.desc}</p>
-                        <Button variant="secondary" className="w-full text-xs" disabled={plan.current}>
-                            {plan.current ? 'Current Plan' : 'Switch Plan'}
-                        </Button>
-                    </div>
-                ))}
-            </div>
-            <div className="pt-8 border-t border-gray-50">
-                 <p className="text-[10px] text-center text-text-secondary uppercase font-bold tracking-widest">Securely processed by <span className="text-primary italic">Campus FinOps</span></p>
-            </div>
-        </div>
-    </Card>
-);
-
-const NotificationSettings = () => (
-    <div className="max-w-2xl mx-auto space-y-8">
-        <div className="flex items-center gap-4">
-            <Link to="/settings" className="p-2 hover:bg-gray-100 rounded-full transition-colors"><ArrowLeft size={20} /></Link>
-            <h1 className="text-2xl font-bold">Notification Config</h1>
-        </div>
-        
-        <Card className="divide-y divide-gray-50 p-0 overflow-hidden">
-            {[
-                { title: 'Academic Performance Alerts', desc: 'Real-time push for grade drops or failing marks.' },
-                { title: 'Attendance System Logs', desc: 'Daily summary of student presence and absences.' },
-                { title: 'Institution Announcements', desc: 'Critical policy updates and campus-wide news.' },
-                { title: 'Staff Direct Messages', desc: 'Internal communication between faculty members.' },
-            ].map(item => (
-                <div key={item.title} className="p-6 flex items-center justify-between hover:bg-gray-50 transition-colors">
-                    <div>
-                        <h4 className="font-bold text-sm text-primary mb-1">{item.title}</h4>
-                        <p className="text-xs text-text-secondary italic">{item.desc}</p>
-                    </div>
-                    <div className="flex gap-2 p-1 bg-bg rounded-lg border border-gray-100">
-                        <button className="px-4 py-1.5 text-[10px] font-black uppercase text-text-secondary hover:text-primary transition-colors">OFF</button>
-                        <button className="px-4 py-1.5 text-[10px] font-black uppercase bg-primary text-white shadow-md rounded-md">ON</button>
-                    </div>
-                </div>
-            ))}
-        </Card>
-    </div>
-);
-
-const StudentReport = () => (
-  <div className="max-w-4xl mx-auto space-y-8">
-      <div className="flex justify-between items-center bg-primary p-8 rounded-2xl shadow-2xl text-white">
-          <div className="flex items-center gap-6">
-              <div className="w-16 h-16 bg-accent rounded-2xl flex items-center justify-center text-primary shadow-xl">
-                  <GraduationCap size={40} />
-              </div>
-              <div>
-                  <h1 className="text-2xl font-display font-black tracking-widest text-accent uppercase">Campus AI</h1>
-                  <p className="text-xs font-bold opacity-60 uppercase tracking-[0.3em] mt-1">Official Academic Transcript</p>
-              </div>
-          </div>
-          <Button variant="accent" className="shadow-lg"><Download size={16} /> PDF Export</Button>
-      </div>
-
-      <Card className="p-12 space-y-12 bg-white relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-64 h-64 bg-accent/5 rounded-full -translate-y-1/2 translate-x-1/2 pointer-events-none" />
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-12 border-b-4 border-primary pb-12">
-               <div className="flex gap-8 items-center">
-                    <div className="w-32 h-32 bg-gray-50 rounded-2xl border-2 border-gray-100 flex items-center justify-center font-bold text-2xl text-gray-200">PHOTO</div>
-                    <div>
-                        <p className="text-[10px] font-bold text-text-secondary uppercase tracking-widest mb-1">Student Identity</p>
-                        <h2 className="text-xl font-bold text-primary">Alexander Pierce</h2>
-                        <p className="text-sm font-mono text-accent">#STD-2024-102</p>
-                    </div>
-               </div>
-               <div className="text-right space-y-2 uppercase">
-                    <p className="text-xs font-bold">Batch: Fall 2024</p>
-                    <p className="text-xs font-bold">Department: Computer Science</p>
-                    <p className="text-xs font-bold text-accent">Status: Honors List</p>
-               </div>
-          </div>
-
-          <div className="space-y-6">
-               <h3 className="text-xs font-black uppercase tracking-[0.4em] text-primary border-l-4 border-accent pl-4">Grade Matrix</h3>
-               <div className="overflow-x-auto">
-                    <table className="w-full text-left uppercase text-xs font-mono">
-                        <thead className="bg-bg">
-                            <tr>
-                                <th className="p-5 border-b border-gray-100">Subject Code</th>
-                                <th className="p-5 border-b border-gray-100">Subject Title</th>
-                                <th className="p-5 border-b border-gray-100 text-center">GP</th>
-                                <th className="p-5 border-b border-gray-100 text-center">Grade</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-50 italic">
-                            {[
-                                { code: 'CS-501', title: 'Operating Systems', gp: '4.0', g: 'A+' },
-                                { code: 'CS-502', title: 'Data Structures', gp: '3.7', g: 'A-' },
-                                { code: 'CS-503', title: 'Computer Architecture', gp: '3.4', g: 'B+' },
-                                { code: 'MA-201', title: 'Discrete Mathematics', gp: '4.0', g: 'A+' },
-                            ].map(row => (
-                                <tr key={row.code} className="hover:bg-bg/50 transition-colors">
-                                    <td className="p-5 font-bold">{row.code}</td>
-                                    <td className="p-5">{row.title}</td>
-                                    <td className="p-5 text-center font-bold">{row.gp}</td>
-                                    <td className="p-5 text-center text-accent font-black">{row.g}</td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-               </div>
-          </div>
-
-          <div className="flex flex-col md:flex-row justify-between items-center pt-8 border-t border-gray-50 gap-8">
-              <div className="flex gap-12">
-                  <div className="text-center">
-                      <p className="text-[10px] font-bold text-text-secondary uppercase">Cumulative GPA</p>
-                      <p className="text-3xl font-black text-primary mt-1">3.82</p>
-                  </div>
-                  <div className="text-center">
-                      <p className="text-[10px] font-bold text-text-secondary uppercase">Ranking</p>
-                      <p className="text-3xl font-black text-accent mt-1">12/120</p>
-                  </div>
-              </div>
-              <div className="w-48 h-12 border-b-2 border-gray-200 italic text-[10px] flex items-end justify-center text-gray-300">Registrar Signature</div>
-          </div>
-      </Card>
-  </div>
-);
-
-import { useNavigate } from 'react-router-dom';
-
-const StudentForm = ({ onAdd }: { onAdd: (s: any) => void }) => {
-    const navigate = useNavigate();
-    const handleSubmit = (e: React.FormEvent) => {
-        e.preventDefault();
-        const formData = new FormData(e.target as HTMLFormElement);
-        const newStudent = {
-            name: formData.get('name'),
-            studentId: formData.get('studentId'),
-            email: formData.get('email'),
-            department: formData.get('department'),
-            attendance: 100, // Default for new student
-            gpa: 0.0, // Default for new student
-            status: 'Active'
-        };
-        onAdd(newStudent);
-        navigate('/students');
-    };
-
-    return (
-    <div className="max-w-4xl mx-auto space-y-8">
-        <div className="flex items-center gap-4">
-            <Link to="/students" className="p-2 hover:bg-gray-100 rounded-full transition-colors"><ArrowLeft size={20} /></Link>
-            <h1 className="text-2xl font-bold">Maintain Student Record</h1>
-        </div>
-
-        <Card className="p-10 space-y-10">
-            <form onSubmit={handleSubmit} className="space-y-10">
-                <div className="flex flex-col md:flex-row gap-12">
-                    <div className="flex flex-col items-center gap-4">
-                        <div className="w-40 h-40 bg-gray-50 rounded-2xl border-4 border-dashed border-gray-200 flex flex-col items-center justify-center text-gray-300 hover:border-accent hover:text-accent transition-all cursor-pointer group">
-                            <Plus size={32} className="group-hover:scale-125 transition-transform" />
-                            <span className="text-[10px] font-bold uppercase mt-2">Upload Profile</span>
-                        </div>
-                    </div>
-                    
-                    <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <Input label="Full Name" name="name" placeholder="e.g. Johnathan Doe" required />
-                        <Input label="Student ID" name="studentId" placeholder="STD-2024-XXX" required />
-                        <Input label="Email Address" name="email" placeholder="john.d@campus.edu" type="email" required />
-                        <Input label="Department" name="department" placeholder="Computer Science" required />
-                        <div className="md:col-span-2">
-                            <Input label="Residential Address" name="address" placeholder="Street, Building, Dorm #" />
-                        </div>
-                    </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-6 border-t border-gray-50">
-                     <Input label="Batch" name="batch" placeholder="Fall 2024" />
-                     <Input label="Guardian Contact" name="guardian" placeholder="+1 (000) 000-0000" />
-                     <Input label="Scholarship Tier" name="scholarship" placeholder="None / Merit 25%" />
-                </div>
-
-                <div className="flex justify-end gap-4 pt-4">
-                    <Link to="/students"><Button variant="secondary" type="button">Cancel</Button></Link>
-                    <Button variant="accent" className="px-12 shadow-lg" type="submit">Save Record</Button>
-                </div>
-            </form>
-        </Card>
-    </div>
-);
-};
-
-// --- Design System Components ---
-
-const Dashboard = ({ students }: { students: any[] }) => (
-  <div className="space-y-8">
-    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-      <div>
-        <h1 className="text-2xl font-bold text-primary">Welcome back, Administrator</h1>
-        <p className="text-sm text-text-secondary">Here's a pulse check of the campus today.</p>
-      </div>
-      <Button variant="primary">
-        <Download size={16} /> Generate Daily Report
-      </Button>
-    </div>
-
-    {/* Stat Cards */}
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-      {[
-        { label: 'Total Students', value: students.length.toLocaleString(), icon: Users, trend: '+12%', variant: 'primary' },
-        { label: 'Present Today', value: '94%', icon: CalendarCheck, trend: '-2%', variant: 'success' },
-        { label: 'Avg Attendance', value: (students.reduce((acc, s) => acc + s.attendance, 0) / students.length).toFixed(1) + '%', icon: BarChart3, trend: '+5%', variant: 'warning' },
-        { label: 'Pending Alerts', value: '24', icon: Bell, trend: '+3', variant: 'error' },
-      ].map((stat, i) => (
-        <Card key={i} className="flex flex-col justify-between h-36 translate-z-0 group hover:-translate-y-1 transition-transform">
-          <div className="flex justify-between items-start">
-            <div className={`p-2.5 rounded-xl bg-bg border border-gray-100 group-hover:bg-primary transition-colors`}>
-              <stat.icon className="text-primary group-hover:text-accent transition-colors" size={20} />
-            </div>
-            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${stat.trend.startsWith('+') ? 'bg-success/10 text-success' : 'bg-error/10 text-error'}`}>
-              {stat.trend}
-            </span>
-          </div>
-          <div className="mt-auto">
-            <p className="text-[10px] font-bold uppercase text-text-secondary tracking-widest">{stat.label}</p>
-            <h3 className="text-2xl font-bold text-primary mt-1">{stat.value}</h3>
-          </div>
-        </Card>
-      ))}
-    </div>
-
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-      {/* Performance Chart Placeholder */}
-      <Card className="lg:col-span-2">
-        <div className="flex justify-between items-center mb-8">
-          <h2 className="font-bold text-lg">Overall Performance Chart</h2>
-          <div className="flex gap-2">
-            <Button variant="ghost" className="px-3 py-1">Week</Button>
-            <Button variant="secondary" className="px-3 py-1">Month</Button>
-          </div>
-        </div>
-        <div className="h-64 flex items-end justify-between px-4 pb-4 border-b border-l border-gray-50 relative">
-          {[60, 45, 80, 55, 90, 70, 85].map((h, i) => (
-            <motion.div 
-              key={i} 
-              initial={{ height: 0 }}
-              animate={{ height: `${h}%` }}
-              className="w-8 md:w-12 bg-primary/10 hover:bg-accent transition-colors rounded-t-lg relative group"
-            >
-              <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-primary text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
-                Score: {h}
-              </div>
-            </motion.div>
-          ))}
-          <div className="absolute inset-0 flex flex-col justify-between opacity-10 pointer-events-none">
-            {[1,2,3,4].map(i => <div key={i} className="w-full border-t border-primary" />)}
-          </div>
-        </div>
-        <div className="flex justify-between mt-4 px-4 text-[10px] font-bold text-text-secondary uppercase">
-          {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(d => <span key={d}>{d}</span>)}
-        </div>
-      </Card>
-
-      {/* Activity Feed */}
-      <Card className="flex flex-col h-full">
-        <h2 className="font-bold text-lg mb-6">Recent Activity</h2>
-        <div className="space-y-6 flex-1 overflow-y-auto pr-2 custom-scrollbar">
-          {[
-            { user: 'Sarah Smith', action: 'applied for Leave', time: '2m ago', icon: FileText, color: 'success' },
-            { user: 'David Miller', action: 'failed Math Quiz', time: '15m ago', icon: AlertCircle, color: 'error' },
-            { user: 'System', action: 'Term 1 Grades Published', time: '1h ago', icon: Bell, color: 'warning' },
-            { user: 'Principal', action: 'updated Policy #901', time: '2h ago', icon: Settings, color: 'primary' },
-          ].map((activity, i) => (
-            <div key={i} className="flex gap-4 group">
-               <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 border border-gray-100 bg-gray-50 group-hover:bg-primary transition-colors`}>
-                  <activity.icon size={16} className="text-text-secondary group-hover:text-accent transition-colors" />
-               </div>
-               <div>
-                  <p className="text-sm">
-                    <span className="font-bold text-primary">{activity.user}</span> {activity.action}
-                  </p>
-                  <p className="text-[10px] text-text-secondary mt-1">{activity.time}</p>
-               </div>
-            </div>
-          ))}
-        </div>
-        <Button variant="ghost" fullWidth className="mt-6 border-t pt-4">View All Logs</Button>
-      </Card>
-    </div>
-  </div>
-);
-
-const StudentList = ({ students, onUpdate }: { students: any[], onUpdate: (id: string, updates: any) => void }) => {
-  const [editingEmail, setEditingEmail] = useState<string | null>(null);
-
+const ProgressBar = ({ value, max = 100 }: { value: number; max?: number }) => {
+  const pct = Math.min(100, Math.round((value / max) * 100));
+  const c = pct >= 75 ? 'bg-emerald-500' : pct >= 50 ? 'bg-amber-500' : 'bg-red-500';
+  const tc = pct >= 75 ? 'text-emerald-600' : pct >= 50 ? 'text-amber-600' : 'text-red-600';
   return (
-  <div className="space-y-6">
-    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-      <div>
-        <h1 className="text-2xl font-bold text-primary">Student Directory</h1>
-        <p className="text-sm text-text-secondary">Managing {students.length} active students</p>
+    <div className="flex items-center gap-3">
+      <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+        <motion.div initial={{ width: 0 }} animate={{ width: `${pct}%` }} className={`h-full ${c}`} />
       </div>
-      <Link to="/students/add">
-        <Button variant="accent">
-          <Plus size={18} /> Add New Student
-        </Button>
-      </Link>
+      <span className={`text-xs font-bold w-9 text-right ${tc}`}>{pct}%</span>
     </div>
-
-    <Card className="p-0 overflow-hidden">
-      <div className="p-4 bg-gray-50 border-b border-gray-100 flex flex-col md:flex-row gap-4">
-        <Input placeholder="Search students by name, ID, or department..." icon={Search} />
-        <Button variant="secondary">
-          <Filter size={16} /> Filters
-        </Button>
-      </div>
-      
-      <div className="overflow-x-auto">
-        <table className="w-full text-left">
-          <thead>
-            <tr className="border-b border-gray-100 bg-gray-50/50">
-              {['Name', 'Student ID', 'Department', 'Attendance', 'GPA', 'Status', ''].map(h => (
-                <th key={h} className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-text-secondary">{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-50">
-            {students.map(student => (
-              <tr 
-                key={student.id} 
-                className="hover:bg-bg cursor-pointer transition-colors group"
-              >
-                <td className="px-6 py-4">
-                  <div className="flex items-center gap-3">
-                    <Link to="/students/view" className="w-10 h-10 rounded-xl bg-primary/5 flex items-center justify-center font-bold text-primary overflow-hidden hover:bg-primary/10">
-                       <UserIcon size={18} />
-                    </Link>
-                    <div>
-                      <div className="text-sm font-bold text-primary group-hover:text-accent transition-colors">{student.name}</div>
-                      {editingEmail === student.id ? (
-                        <input 
-                          autoFocus
-                          className="text-[10px] text-accent bg-transparent border-b border-accent outline-none"
-                          defaultValue={student.email}
-                          onBlur={(e) => {
-                            onUpdate(student.id, { email: e.target.value });
-                            setEditingEmail(null);
-                          }}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                              onUpdate(student.id, { email: (e.target as HTMLInputElement).value });
-                              setEditingEmail(null);
-                            }
-                          }}
-                        />
-                      ) : (
-                        <div 
-                          className="text-[10px] text-text-secondary hover:text-accent italic cursor-text"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setEditingEmail(student.id);
-                          }}
-                        >
-                          {student.email}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </td>
-                <td className="px-6 py-4 text-xs font-mono font-bold text-text-secondary">{student.studentId}</td>
-                <td className="px-6 py-4 text-xs font-semibold">{student.department}</td>
-                <td className="px-6 py-4">
-                  <div className="flex items-center gap-2">
-                    <div className="w-16 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                      <div 
-                        className={`h-full transition-all duration-500 ${student.attendance < 75 ? 'bg-error' : 'bg-success'}`} 
-                        style={{ width: `${student.attendance}%` }} 
-                      />
-                    </div>
-                    <span className="text-[10px] font-bold">{student.attendance}%</span>
-                  </div>
-                </td>
-                <td className="px-6 py-4">
-                   <div className="flex items-center gap-1">
-                      <TrendingUp size={12} className={student.gpa >= 3.5 ? 'text-success' : 'text-warning'} />
-                      <span className="text-sm font-bold">{student.gpa}</span>
-                   </div>
-                </td>
-                <td className="px-6 py-4">
-                  <Badge variant={student.status === 'On Probation' ? 'warning' : 'success'}>
-                    {student.status}
-                  </Badge>
-                </td>
-                <td className="px-6 py-4">
-                  <Button variant="ghost" className="p-2 min-w-0" onClick={(e: any) => e.stopPropagation()}>
-                    <MoreVertical size={16} />
-                  </Button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      
-      <div className="p-4 bg-gray-50 border-t border-gray-100 flex justify-between items-center text-xs font-bold text-text-secondary">
-        <div>Showing 1-{students.length} of {students.length} entries</div>
-        <div className="flex gap-2">
-           <Button variant="secondary" className="px-3 py-1 text-[10px]">Prev</Button>
-           <Button variant="secondary" className="px-3 py-1 text-[10px]">Next</Button>
-        </div>
-      </div>
-    </Card>
-  </div>
-);
+  );
 };
 
-const AttendanceOverview = ({ students }: { students: any[] }) => {
-  const [selectedStudent, setSelectedStudent] = useState(students[0]);
+const StatCard = ({ label, value, icon: Icon, sub, color = 'text-amber-500' }: any) => (
+  <Card>
+    <div className="mb-4">
+      <div className="w-9 h-9 bg-gray-50 rounded-xl flex items-center justify-center"><Icon size={18} className={color} /></div>
+    </div>
+    <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">{label}</p>
+    <p className="text-2xl font-black text-slate-800 mt-1">{value}</p>
+    {sub && <p className="text-xs text-slate-400 mt-1">{sub}</p>}
+  </Card>
+);
 
-  // Generate a consistent "random" pattern based on student id for the demo
-  const getAttendanceStatus = (day: number, studentId: string) => {
-    const seed = parseInt(studentId) + day;
-    if (seed % 11 === 0) return 'error';
-    if (seed % 7 === 0) return 'warning';
-    if (seed % 3 === 0) return 'success';
-    return 'success-light';
+// ─────────────────────────────────────────────
+// LOGIN SCREEN
+// ─────────────────────────────────────────────
+const LoginScreen = () => {
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const { login } = useAuth();
+
+  const handleLogin = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!login(username, password)) {
+      setError('Invalid credentials. Use admin/admin or any Student ID with any password.');
+    }
   };
 
   return (
-    <div className="space-y-8">
-      <div className="flex justify-between items-center">
-         <h1 className="text-2xl font-bold">Attendance Analytics</h1>
-         <Link to="/attendance/mark">
-            <Button variant="accent">Mark Today's Attendance</Button>
-         </Link>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-         {/* Student Selection Table */}
-         <Card className="lg:col-span-4 h-[600px] flex flex-col overflow-hidden">
-            <div className="mb-6">
-              <h2 className="font-bold text-lg">Student Directory</h2>
-              <p className="text-xs text-text-secondary mt-1">Select a student to view details</p>
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-6">
+      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-md">
+        <div className="bg-white rounded-3xl shadow-2xl overflow-hidden">
+          <div className="bg-slate-900 p-10 text-center">
+            <div className="w-16 h-16 bg-amber-400 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg">
+              <GraduationCap className="text-slate-900" size={32} />
             </div>
-            <div className="flex-1 overflow-y-auto space-y-2 pr-2">
-               {students.map((student) => (
-                  <div 
-                    key={student.id}
-                    onClick={() => setSelectedStudent(student)}
-                    className={`p-4 rounded-xl border transition-all cursor-pointer flex items-center justify-between group ${selectedStudent?.id === student.id ? 'border-accent bg-accent/5 shadow-sm' : 'border-gray-50 hover:border-gray-200 hover:bg-gray-50'}`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs ${selectedStudent?.id === student.id ? 'bg-accent text-white' : 'bg-gray-100 text-text-secondary group-hover:bg-primary group-hover:text-white'}`}>
-                        {student.name.charAt(0)}
-                      </div>
-                      <div>
-                        <p className="text-sm font-bold text-primary">{student.name}</p>
-                        <p className="text-[10px] text-text-secondary font-medium uppercase tracking-wider">{student.studentId}</p>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <p className={`text-sm font-black ${student.attendance > 90 ? 'text-success' : student.attendance > 80 ? 'text-primary' : 'text-error'}`}>
-                        {student.attendance}%
-                      </p>
-                    </div>
-                  </div>
-               ))}
-            </div>
-         </Card>
-
-         {/* Detailed View */}
-         <div className="lg:col-span-8 space-y-8">
-            <Card className="relative overflow-hidden group">
-               {/* Decorative background for selected student */}
-               <div className="absolute top-0 right-0 p-8 opacity-5">
-                  <UserIcon size={120} />
-               </div>
-
-               <div className="relative z-10">
-                  <div className="flex justify-between items-start mb-8">
-                    <div>
-                      <h2 className="font-bold text-xl text-primary">{selectedStudent?.name}</h2>
-                      <div className="flex gap-4 mt-2">
-                        <Badge variant="success">{selectedStudent?.department}</Badge>
-                        <Badge variant="default">{selectedStudent?.studentId}</Badge>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-[10px] font-black uppercase text-text-secondary tracking-[0.2em] mb-1">Total Attendance</p>
-                      <p className="text-4xl font-black text-primary">{selectedStudent?.attendance}%</p>
-                    </div>
-                  </div>
-
-                  <div className="flex justify-between items-center mb-6">
-                    <h3 className="font-bold text-sm uppercase tracking-widest text-text-secondary flex items-center gap-2">
-                      Monthly Heatmap
-                    </h3>
-                    <div className="flex gap-3 text-[10px] font-black uppercase">
-                       <div className="flex items-center gap-1.5"><div className="w-2 h-2 bg-success rounded-full" /> Present</div>
-                       <div className="flex items-center gap-1.5"><div className="w-2 h-2 bg-error rounded-full" /> Absent</div>
-                       <div className="flex items-center gap-1.5"><div className="w-2 h-2 bg-warning rounded-full" /> Late</div>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-7 gap-2 sm:gap-4">
-                    {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(d => (
-                       <div key={d} className="text-center text-[10px] font-black uppercase text-text-secondary opacity-50 pb-2">{d}</div>
-                    ))}
-                    {Array.from({ length: 35 }).map((_, i) => {
-                       const day = i - 3;
-                       const isValid = day > 0 && day <= 30;
-                       let bgClass = 'bg-gray-50';
-                       let statusLabel = '';
-                       if (isValid) {
-                          const status = getAttendanceStatus(day, selectedStudent?.id || '0');
-                          if (status === 'error') bgClass = 'bg-error text-white';
-                          else if (status === 'warning') bgClass = 'bg-warning text-white';
-                          else if (status === 'success') bgClass = 'bg-success text-white';
-                          else bgClass = 'bg-success/40 text-white';
-                          statusLabel = status;
-                       }
-                       return (
-                          <div 
-                            key={i} 
-                            title={isValid ? `Day ${day}: ${statusLabel}` : ''}
-                            className={`aspect-square flex items-center justify-center rounded-xl text-xs font-bold transition-all hover:scale-110 cursor-pointer ${bgClass} ${!isValid ? 'opacity-0 pointer-events-none' : 'shadow-sm'}`}
-                          >
-                             {isValid ? day : ''}
-                          </div>
-                       );
-                    })}
-                  </div>
-               </div>
-            </Card>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-               <Card className="flex items-center gap-6 p-8">
-                  <div className="w-20 h-20 flex-shrink-0">
-                    <svg className="w-full h-full transform -rotate-90">
-                       <circle cx="40" cy="40" r="35" stroke="currentColor" strokeWidth="8" fill="transparent" className="text-gray-100" />
-                       <circle cx="40" cy="40" r="35" stroke="currentColor" strokeWidth="8" fill="transparent" strokeDasharray={220} strokeDashoffset={220 * (1 - (selectedStudent?.attendance / 100))} className="text-accent" />
-                    </svg>
-                  </div>
-                  <div>
-                    <h4 className="font-bold text-sm text-primary mb-1">Consistency Score</h4>
-                    <p className="text-xs text-text-secondary leading-relaxed">Student is performing {selectedStudent?.attendance > 90 ? 'exceptionally well' : 'stably'} in regular lectures.</p>
-                  </div>
-               </Card>
-
-               <Card className="bg-primary text-white p-8">
-                  <h4 className="text-[10px] font-black uppercase tracking-widest text-accent mb-4">Quick Insights</h4>
-                  <div className="space-y-3">
-                    <div className="flex justify-between items-center text-xs">
-                      <span className="opacity-60">Consecutive Days present</span>
-                      <span className="font-bold">12 Days</span>
-                    </div>
-                    <div className="flex justify-between items-center text-xs">
-                      <span className="opacity-60">Missed Morning sessions</span>
-                      <span className="font-bold text-error">2</span>
-                    </div>
-                  </div>
-               </Card>
-            </div>
-         </div>
-      </div>
-    </div>
-  );
-};
-
-const GradesOverview = ({ students }: { students: any[] }) => {
-  const globalGpa = (students.reduce((acc, s) => acc + s.gpa, 0) / students.length).toFixed(2);
-
-  return (
-  <div className="space-y-8">
-    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-      <div>
-        <h1 className="text-2xl font-bold text-primary">Academic Performance</h1>
-        <p className="text-sm text-text-secondary">Consolidated grading overview for Fall 2025</p>
-      </div>
-      <div className="flex gap-3">
-         <Button variant="secondary">Global GPA: {globalGpa}</Button>
-         <Button variant="accent"><PieIcon size={16} /> Analysis</Button>
-      </div>
-    </div>
-
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-       {[
-          { subject: 'Mathematics', grade: 'A-', trend: 'up', students: 120 },
-          { subject: 'Physics', grade: 'B+', trend: 'down', students: 84 },
-          { subject: 'Computer Sci', grade: 'A+', trend: 'up', students: 212 },
-          { subject: 'Literature', grade: 'B', trend: 'stable', students: 95 },
-       ].map((sub, i) => (
-          <Card key={i} className="hover:border-accent group" onClick={() => window.location.href='/grades/subject'}>
-             <div className="flex justify-between mb-4">
-                <h3 className="font-bold text-primary">{sub.subject}</h3>
-                <div className="w-8 h-8 rounded-lg bg-gray-50 flex items-center justify-center text-accent group-hover:bg-accent group-hover:text-white transition-colors">
-                   <ChevronRight size={14} />
+            <h1 className="text-2xl font-black text-white tracking-tight">Campus AI</h1>
+            <p className="text-slate-400 text-sm mt-1">Smart Student Management System</p>
+          </div>
+          <div className="p-10">
+            <form onSubmit={handleLogin} className="space-y-5">
+              <Inp label="Username / Student ID" placeholder="admin  or  23k0905" icon={UserIcon}
+                value={username} onChange={(e: any) => { setUsername(e.target.value); setError(''); }} />
+              <Inp label="Password" type="password" placeholder="••••••••" icon={Lock}
+                value={password} onChange={(e: any) => { setPassword(e.target.value); setError(''); }} />
+              {error && (
+                <div className="flex items-center gap-2 p-3 bg-red-50 rounded-xl border border-red-100">
+                  <AlertCircle size={16} className="text-red-500 shrink-0" />
+                  <p className="text-xs text-red-600">{error}</p>
                 </div>
-             </div>
-             <div className="text-4xl font-black text-primary mb-4">{sub.grade}</div>
-             <div className="flex justify-between items-end">
-                <div className="text-[10px] font-bold text-text-secondary uppercase">
-                   {sub.students} Enrolled
-                </div>
-                {sub.trend === 'up' ? <TrendingUp className="text-success" size={18} /> : sub.trend === 'down' ? <TrendingUp className="text-error rotate-90" size={18} /> : <div className="h-1 w-4 bg-gray-200" />}
-             </div>
-          </Card>
-       ))}
-    </div>
-
-    <Card>
-       <div className="flex justify-between items-center mb-10">
-          <h2 className="text-lg font-bold">Grade Distribution</h2>
-          <Button variant="ghost" className="text-xs">Download CSV</Button>
-       </div>
-       <div className="h-64 flex items-end gap-1 px-4 border-b border-gray-100">
-          {[
-             { grade: 'F', count: 23, color: 'bg-error/30' },
-             { grade: 'D', count: 50, color: 'bg-warning/30' },
-             { grade: 'C', count: 85, color: 'bg-primary/20' },
-             { grade: 'B', count: 156, color: 'bg-primary/20' },
-             { grade: 'B+', count: 212, color: 'bg-accent' },
-             { grade: 'A-', count: 140, color: 'bg-primary/20' },
-             { grade: 'A', count: 65, color: 'bg-primary/20' },
-          ].map((data, i) => {
-             const maxHeight = 212; 
-             const h = (data.count / maxHeight) * 100;
-             return (
-             <div key={i} className="flex-1 flex flex-col items-center gap-4 h-full justify-end">
-                <motion.div 
-                   initial={{ height: 0 }}
-                   animate={{ height: `${h}%` }}
-                   className={`w-full max-w-[60px] rounded-t-xl group relative ${data.color} hover:brightness-110 transition-all`}
-                >
-                   <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-primary text-white px-3 py-1.5 rounded-lg text-xs font-bold opacity-0 group-hover:opacity-100 transition-opacity shadow-lg whitespace-nowrap z-10">
-                      {data.count} Students
-                   </div>
-                </motion.div>
-                <div className="text-[10px] font-black uppercase text-text-secondary rotate-45 sm:rotate-0 mt-4 whitespace-nowrap pb-2">
-                   {data.grade}
-                </div>
-             </div>
-          )})}
-       </div>
-    </Card>
-  </div>
-  );
-};
-
-// --- Layout & Components ---
-
-const SidebarItem = ({ to, label, icon: Icon, active }: any) => (
-  <Link 
-    to={to} 
-    className={`flex items-center gap-4 px-6 py-4 transition-all relative group ${active ? 'bg-white/10 text-accent font-bold' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}
-  >
-    {active && <motion.div layoutId="nav-pill" className="absolute left-0 w-1.5 h-full bg-accent rounded-r-full" />}
-    <Icon size={20} className={active ? 'text-accent' : 'text-gray-400 group-hover:text-white'} />
-    <span className="text-[10px] font-bold uppercase tracking-widest">{label}</span>
-  </Link>
-);
-
-const AppLayout = ({ children }: { children: React.ReactNode }) => {
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const location = useLocation();
-  const isAuth = location.pathname === '/' || location.pathname === '/forgot-password';
-
-  if (isAuth) return <>{children}</>;
-
-  return (
-    <div className="min-h-screen bg-bg flex flex-col lg:flex-row">
-      {/* Sidebar */}
-      <aside className="hidden lg:flex flex-col w-72 h-screen fixed left-0 top-0 bg-primary text-white z-50 shadow-2xl">
-        <div className="p-8 mb-10">
-          <div className="flex items-center gap-4 group">
-            <div className="w-12 h-12 bg-accent rounded-2xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
-              <GraduationCap className="text-primary" size={28} strokeWidth={2} />
-            </div>
-            <div>
-              <h1 className="text-xl font-display font-bold text-white tracking-widest">CAMPUS AI</h1>
-              <p className="text-[8px] font-bold text-accent tracking-[0.4em] uppercase opacity-70">Admin Portal</p>
+              )}
+              <Btn variant="accent" fullWidth type="submit" className="py-3 text-base">Sign In</Btn>
+            </form>
+            <div className="mt-8 p-4 bg-gray-50 rounded-xl border border-dashed border-gray-200">
+              <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">Demo Credentials</p>
+              <div className="space-y-1 text-xs text-slate-600">
+                <p><span className="font-bold">Admin:</span> <code className="bg-amber-100 px-1 rounded">admin</code> / <code className="bg-amber-100 px-1 rounded">admin</code></p>
+                <p><span className="font-bold">Student:</span> any ID like <code className="bg-amber-100 px-1 rounded">23k0905</code> + any password</p>
+              </div>
             </div>
           </div>
         </div>
-        
-        <nav className="flex-1 space-y-1">
-          {[
-            { path: '/dashboard', label: 'Overview', icon: LayoutDashboard },
-            { path: '/students', label: 'Students', icon: Users },
-            { path: '/attendance', label: 'Attendance', icon: CalendarCheck },
-            { path: '/grades', label: 'Academics', icon: GraduationCap },
-            { path: '/notifications', label: 'Activity', icon: Bell },
-            { path: '/settings', label: 'Systems', icon: Settings },
-            { path: '/usability-testing', label: 'Testing', icon: AlertCircle },
-          ].map(item => (
-            <SidebarItem 
-               key={item.path}
-               to={item.path}
-               label={item.label}
-               icon={item.icon}
-               active={location.pathname.startsWith(item.path)}
-            />
-          ))}
-        </nav>
+      </motion.div>
+    </div>
+  );
+};
 
-        <div className="p-8 border-t border-white/5 space-y-6">
-           <div className="flex items-center gap-4">
-              <div className="w-10 h-10 rounded-xl bg-accent/20 border border-accent/30 flex items-center justify-center text-accent font-bold">JD</div>
-              <div>
-                 <p className="text-xs font-bold">John Doe</p>
-                 <p className="text-[10px] opacity-40 uppercase font-bold tracking-wider">HOD Computer Science</p>
-              </div>
-           </div>
-           <Link to="/" className="flex items-center gap-3 text-[10px] font-bold uppercase tracking-widest text-error/60 hover:text-error transition-colors">
-              <LogOut size={16} /> Terminate Session
-           </Link>
+// ─────────────────────────────────────────────
+// SIDEBAR
+// ─────────────────────────────────────────────
+const Sidebar = ({ tabs, activeTab, setActiveTab, onClose }: {
+  tabs: { id: string; label: string; icon: any }[];
+  activeTab: string; setActiveTab: (t: string) => void; onClose?: () => void;
+}) => {
+  const { user, logout } = useAuth();
+  return (
+    <div className="flex flex-col h-full bg-slate-900 text-white">
+      <div className="p-6 flex items-center gap-3 border-b border-white/5">
+        <div className="w-10 h-10 bg-amber-400 rounded-xl flex items-center justify-center shrink-0">
+          <GraduationCap className="text-slate-900" size={22} />
         </div>
-      </aside>
+        <div>
+          <h1 className="text-base font-black tracking-tight">Campus AI</h1>
+          <p className="text-[10px] text-amber-400 uppercase tracking-wider font-bold">
+            {user?.role === 'admin' ? 'Admin Portal' : 'Student Hub'}
+          </p>
+        </div>
+        {onClose && (
+          <button onClick={onClose} className="ml-auto p-1 text-slate-400 hover:text-white"><X size={20} /></button>
+        )}
+      </div>
 
-      {/* Mobile Top Nav */}
-      <header className="lg:hidden h-20 bg-primary px-6 flex items-center justify-between sticky top-0 z-50">
-         <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-accent rounded-xl flex items-center justify-center">
-              <GraduationCap className="text-primary" size={24} />
-            </div>
-            <span className="font-bold text-white tracking-tighter text-lg uppercase">Campus AI</span>
-         </div>
-         <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="p-2 text-white">
-            {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
-         </button>
-      </header>
-
-      {/* Mobile Sidebar Overlay */}
-      <AnimatePresence>
-         {mobileMenuOpen && (
-            <motion.div 
-               initial={{ x: '-100%' }}
-               animate={{ x: 0 }}
-               exit={{ x: '-100%' }}
-               className="lg:hidden fixed inset-0 bg-primary text-white z-40 pt-24"
+      <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
+        {tabs.map(tab => {
+          const active = activeTab === tab.id;
+          return (
+            <button
+              key={tab.id}
+              onClick={() => { setActiveTab(tab.id); onClose?.(); }}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all text-left ${active ? 'bg-amber-400 text-slate-900' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}
             >
-               <nav className="p-8 space-y-4">
-                  {[
-                    { path: '/dashboard', label: 'Overview', icon: LayoutDashboard },
-                    { path: '/students', label: 'Students', icon: Users },
-                    { path: '/attendance', label: 'Attendance', icon: CalendarCheck },
-                    { path: '/grades', label: 'Academics', icon: GraduationCap },
-                  ].map(item => (
-                    <Link 
-                       key={item.path} 
-                       to={item.path} 
-                       onClick={() => setMobileMenuOpen(false)}
-                       className="flex items-center gap-6 text-2xl font-bold uppercase tracking-widest border-b border-white/5 pb-6 text-gray-300 active:text-accent"
-                    >
-                       <item.icon size={28} /> {item.label}
-                    </Link>
-                  ))}
-               </nav>
-            </motion.div>
-         )}
+              <tab.icon size={18} strokeWidth={active ? 2.5 : 2} />
+              {tab.label}
+            </button>
+          );
+        })}
+      </nav>
+
+      <div className="p-4 border-t border-white/5">
+        <div className="flex items-center gap-3 mb-4 px-2">
+          <div className="w-8 h-8 rounded-lg bg-amber-400/20 flex items-center justify-center text-amber-400 font-bold text-sm">
+            {user?.name.split(' ').map((n: string) => n[0]).join('').slice(0, 2)}
+          </div>
+          <div className="min-w-0">
+            <p className="text-sm font-bold truncate">{user?.name}</p>
+            <p className="text-[10px] text-slate-500 truncate">{user?.role === 'admin' ? 'Administrator' : user?.studentId}</p>
+          </div>
+        </div>
+        <button onClick={logout} className="w-full flex items-center gap-2 px-4 py-2 rounded-xl text-red-400 hover:bg-red-500/10 text-sm font-semibold transition-all">
+          <LogOut size={16} /> Sign Out
+        </button>
+      </div>
+    </div>
+  );
+};
+
+// ─────────────────────────────────────────────
+// ADMIN TAB CONTENTS
+// ─────────────────────────────────────────────
+const AdminOverview = ({ students, faculty }: { students: Student[]; faculty: Faculty[] }) => {
+  const avgGpa = (students.reduce((a, s) => a + s.gpa, 0) / students.length).toFixed(2);
+  const probation = students.filter(s => s.status === 'On Probation').length;
+  const deptBreakdown = students.reduce((acc: Record<string, number>, s) => {
+    acc[s.department] = (acc[s.department] || 0) + 1;
+    return acc;
+  }, {});
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-black text-slate-800">System Overview</h1>
+        <p className="text-sm text-slate-500 mt-1">Real-time campus dashboard</p>
+      </div>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatCard label="Total Students" value={students.length} icon={Users} sub="Active enrollees" />
+        <StatCard label="Faculty Members" value={faculty.length} icon={UserIcon} sub="Academic staff" color="text-blue-500" />
+        <StatCard label="Average GPA" value={avgGpa} icon={TrendingUp} sub="Current semester" color="text-emerald-500" />
+        <StatCard label="On Probation" value={probation} icon={AlertCircle} sub="Needs attention" color="text-red-500" />
+      </div>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Card>
+          <h2 className="font-bold text-slate-800 mb-4">Student Attendance</h2>
+          <div className="space-y-4">
+            {students.slice(0, 6).map(s => (
+              <div key={s.id} className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-slate-500 font-bold text-xs shrink-0">{s.name.charAt(0)}</div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-slate-700 truncate mb-1">{s.name}</p>
+                  <ProgressBar value={s.attendance} />
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
+        <Card>
+          <h2 className="font-bold text-slate-800 mb-4">Department Distribution</h2>
+          <div className="space-y-3">
+            {Object.entries(deptBreakdown).map(([dept, count]) => (
+              <div key={dept} className="flex items-center justify-between gap-4">
+                <p className="text-sm text-slate-700 font-medium truncate flex-1">{dept}</p>
+                <div className="flex items-center gap-2">
+                  <div className="w-20 h-2 bg-gray-100 rounded-full overflow-hidden">
+                    <div className="h-full bg-amber-400 rounded-full" style={{ width: `${(count / students.length) * 100}%` }} />
+                  </div>
+                  <span className="text-xs font-bold text-slate-600 w-4">{count}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
+      </div>
+      <Card>
+        <h2 className="font-bold text-slate-800 mb-4">Weekly Attendance Trend</h2>
+        <div className="h-36 flex items-end gap-2 border-b border-l border-gray-100 px-2">
+          {[72, 85, 68, 91, 78, 88, 94].map((h, i) => (
+            <div key={i} className="flex-1 flex flex-col items-center gap-1 h-full justify-end">
+              <motion.div initial={{ height: 0 }} animate={{ height: `${h}%` }}
+                className="w-full bg-amber-400/80 hover:bg-amber-400 rounded-t-lg transition-colors relative group">
+                <div className="absolute -top-6 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[10px] px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 whitespace-nowrap">{h}%</div>
+              </motion.div>
+            </div>
+          ))}
+        </div>
+        <div className="flex justify-between mt-2 px-2">
+          {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(d => (
+            <span key={d} className="text-[10px] font-bold text-slate-400 uppercase flex-1 text-center">{d}</span>
+          ))}
+        </div>
+      </Card>
+    </div>
+  );
+};
+
+const AdminStudents = ({ students, setStudents }: { students: Student[]; setStudents: React.Dispatch<React.SetStateAction<Student[]>> }) => {
+  const [search, setSearch] = useState('');
+  const [adding, setAdding] = useState(false);
+  const [editId, setEditId] = useState<string | null>(null);
+  const emptyForm = { name: '', email: '', department: '', studentId: '', batch: '', status: 'Active', attendance: 90, gpa: 3.0 };
+  const [form, setForm] = useState(emptyForm);
+
+  const filtered = students.filter(s =>
+    s.name.toLowerCase().includes(search.toLowerCase()) ||
+    s.studentId.toLowerCase().includes(search.toLowerCase()) ||
+    s.department.toLowerCase().includes(search.toLowerCase())
+  );
+
+  const handleAdd = () => {
+    if (!form.name || !form.studentId) return;
+    setStudents(prev => [{ ...form, id: Date.now().toString() }, ...prev]);
+    setAdding(false); setForm(emptyForm);
+  };
+
+  const handleEdit = (s: Student) => {
+    setEditId(s.id);
+    setForm({ name: s.name, email: s.email, department: s.department, studentId: s.studentId, batch: s.batch || '', status: s.status, attendance: s.attendance, gpa: s.gpa });
+  };
+
+  const handleSave = () => {
+    setStudents(prev => prev.map(s => s.id === editId ? { ...s, ...form } : s));
+    setEditId(null);
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <h1 className="text-2xl font-black text-slate-800">Student Directory</h1>
+          <p className="text-sm text-slate-500">{students.length} students enrolled</p>
+        </div>
+        <Btn variant="accent" onClick={() => { setAdding(true); setEditId(null); }}><Plus size={16} /> Add Student</Btn>
+      </div>
+
+      <AnimatePresence>
+        {(adding || editId) && (
+          <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
+            <Card className="border-amber-200 bg-amber-50">
+              <h3 className="font-bold text-slate-800 mb-4">{adding ? 'Add New Student' : 'Edit Student'}</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                <Inp label="Full Name" value={form.name} onChange={(e: any) => setForm(p => ({ ...p, name: e.target.value }))} placeholder="e.g. John Doe" />
+                <Inp label="Email" type="email" value={form.email} onChange={(e: any) => setForm(p => ({ ...p, email: e.target.value }))} placeholder="email@campus.edu" />
+                <Inp label="Student ID" value={form.studentId} onChange={(e: any) => setForm(p => ({ ...p, studentId: e.target.value }))} placeholder="STD-2024-XXX" />
+                <Inp label="Department" value={form.department} onChange={(e: any) => setForm(p => ({ ...p, department: e.target.value }))} placeholder="Computer Science" />
+                <Inp label="Batch" value={form.batch} onChange={(e: any) => setForm(p => ({ ...p, batch: e.target.value }))} placeholder="Fall 2024" />
+                <div className="flex gap-3">
+                  <div className="flex-1"><Inp label="Attendance %" type="number" value={form.attendance} onChange={(e: any) => setForm(p => ({ ...p, attendance: Number(e.target.value) }))} /></div>
+                  <div className="flex-1"><Inp label="GPA" type="number" step="0.01" value={form.gpa} onChange={(e: any) => setForm(p => ({ ...p, gpa: Number(e.target.value) }))} /></div>
+                </div>
+              </div>
+              <div className="flex gap-3 mt-4">
+                <Btn variant="accent" onClick={adding ? handleAdd : handleSave}><Save size={14} /> {adding ? 'Add Student' : 'Save Changes'}</Btn>
+                <Btn variant="secondary" onClick={() => { setAdding(false); setEditId(null); }}>Cancel</Btn>
+              </div>
+            </Card>
+          </motion.div>
+        )}
       </AnimatePresence>
 
-      <main className="flex-1 lg:ml-72 min-h-screen">
-        <header className="hidden lg:flex h-24 bg-white border-b border-gray-100 px-12 items-center justify-between sticky top-0 z-40">
-           <div className="text-[11px] font-black uppercase text-text-secondary flex items-center gap-3">
-              <span className="opacity-40">Portal</span> / <span className="text-primary">{location.pathname.split('/')[1] || 'Dashboard'}</span>
-           </div>
-           
-           <div className="flex items-center gap-8">
-              <div className="relative group">
-                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-accent transition-colors" size={16} />
-                 <input className="bg-bg border border-transparent focus:border-gray-200 outline-none rounded-full pl-10 pr-4 py-2 text-xs w-64 transition-all" placeholder="Global search..." />
-              </div>
-              <div className="flex gap-4">
-                 <Link to="/notifications" className="w-10 h-10 rounded-full border border-gray-100 flex items-center justify-center relative hover:bg-bg cursor-pointer transition-colors">
-                    <Bell size={18} className="text-text-secondary" />
-                    <div className="absolute top-0 right-0 w-3 h-3 bg-error rounded-full border-2 border-white" />
-                 </Link>
-                 <Link to="/settings" className="w-10 h-10 rounded-full border border-gray-100 flex items-center justify-center hover:bg-bg cursor-pointer transition-colors overflow-hidden">
-                    <UserIcon size={18} className="text-text-secondary" />
-                 </Link>
-              </div>
-           </div>
-        </header>
+      <Card className="p-0 overflow-hidden">
+        <div className="p-4 border-b border-gray-100 flex gap-3">
+          <div className="flex-1 relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={15} />
+            <input className="w-full bg-gray-50 border border-gray-200 rounded-xl py-2 pl-9 pr-4 text-sm outline-none" placeholder="Search by name, ID or department..." value={search} onChange={e => setSearch(e.target.value)} />
+          </div>
+          <Btn variant="secondary"><Filter size={14} /> Filter</Btn>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left">
+            <thead>
+              <tr className="border-b border-gray-100 bg-gray-50">
+                {['Student', 'ID', 'Department', 'Attendance', 'GPA', 'Status', 'Actions'].map(h => (
+                  <th key={h} className="px-5 py-3 text-[11px] font-bold uppercase tracking-wider text-slate-400">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {filtered.map(s => (
+                <tr key={s.id} className="hover:bg-gray-50 transition-colors">
+                  <td className="px-5 py-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-xl bg-slate-100 flex items-center justify-center font-bold text-slate-500 text-sm shrink-0">{s.name.charAt(0)}</div>
+                      <div>
+                        <p className="text-sm font-bold text-slate-800">{s.name}</p>
+                        <p className="text-[11px] text-slate-400">{s.email}</p>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-5 py-4 text-xs font-mono text-slate-500 whitespace-nowrap">{s.studentId}</td>
+                  <td className="px-5 py-4 text-sm text-slate-600 whitespace-nowrap">{s.department}</td>
+                  <td className="px-5 py-4 min-w-[140px]"><ProgressBar value={s.attendance} /></td>
+                  <td className="px-5 py-4">
+                    <span className={`text-sm font-bold ${s.gpa >= 3.5 ? 'text-emerald-600' : s.gpa >= 3.0 ? 'text-amber-600' : 'text-red-600'}`}>{s.gpa.toFixed(2)}</span>
+                  </td>
+                  <td className="px-5 py-4"><Badge variant={s.status === 'On Probation' ? 'warning' : 'success'}>{s.status}</Badge></td>
+                  <td className="px-5 py-4">
+                    <div className="flex items-center gap-1">
+                      <button onClick={() => handleEdit(s)} className="p-1.5 rounded-lg hover:bg-amber-50 text-slate-400 hover:text-amber-600 transition-colors"><Edit2 size={14} /></button>
+                      <button onClick={() => setStudents(prev => prev.filter(x => x.id !== s.id))} className="p-1.5 rounded-lg hover:bg-red-50 text-slate-400 hover:text-red-500 transition-colors"><Trash2 size={14} /></button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+              {filtered.length === 0 && (
+                <tr><td colSpan={7} className="px-5 py-12 text-center text-slate-400 text-sm">No students found</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </Card>
+    </div>
+  );
+};
 
-        <div className="p-6 md:p-12 max-w-7xl mx-auto">
+const AdminFaculty = ({ faculty, setFaculty }: { faculty: Faculty[]; setFaculty: React.Dispatch<React.SetStateAction<Faculty[]>> }) => {
+  const [search, setSearch] = useState('');
+  const [adding, setAdding] = useState(false);
+  const [form, setForm] = useState({ name: '', designation: 'Lecturer', subject: '', department: '', email: '' });
+
+  const filtered = faculty.filter(f =>
+    f.name.toLowerCase().includes(search.toLowerCase()) ||
+    f.subject.toLowerCase().includes(search.toLowerCase()) ||
+    f.department.toLowerCase().includes(search.toLowerCase())
+  );
+
+  const handleAdd = () => {
+    if (!form.name) return;
+    setFaculty(prev => [...prev, { ...form, id: `T${String(prev.length + 1).padStart(2, '0')}` }]);
+    setAdding(false);
+    setForm({ name: '', designation: 'Lecturer', subject: '', department: '', email: '' });
+  };
+
+  const desigVariant: Record<string, string> = { 'Professor': 'info', 'Assistant Professor': 'accent', 'Lecturer': 'default' };
+
+  return (
+    <div className="space-y-6">
+      <div className="flex justify-between items-center">
+        <div>
+          <h1 className="text-2xl font-black text-slate-800">Faculty Directory</h1>
+          <p className="text-sm text-slate-500">{faculty.length} academic staff members</p>
+        </div>
+        <Btn variant="accent" onClick={() => setAdding(true)}><Plus size={16} /> Add Faculty</Btn>
+      </div>
+
+      <AnimatePresence>
+        {adding && (
+          <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
+            <Card className="border-amber-200 bg-amber-50">
+              <h3 className="font-bold text-slate-800 mb-4">Register New Faculty</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                <Inp label="Full Name" value={form.name} onChange={(e: any) => setForm(p => ({ ...p, name: e.target.value }))} placeholder="Dr. Jane Smith" />
+                <Inp label="Email" type="email" value={form.email} onChange={(e: any) => setForm(p => ({ ...p, email: e.target.value }))} placeholder="j.smith@campus.edu" />
+                <Inp label="Subject" value={form.subject} onChange={(e: any) => setForm(p => ({ ...p, subject: e.target.value }))} placeholder="e.g. Machine Learning" />
+                <Inp label="Department" value={form.department} onChange={(e: any) => setForm(p => ({ ...p, department: e.target.value }))} placeholder="Computer Science" />
+                <div className="space-y-1">
+                  <label className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Designation</label>
+                  <select className="w-full bg-gray-50 border border-gray-200 rounded-xl py-2.5 px-3 text-sm outline-none" value={form.designation} onChange={(e: any) => setForm(p => ({ ...p, designation: e.target.value }))}>
+                    <option>Professor</option>
+                    <option>Assistant Professor</option>
+                    <option>Lecturer</option>
+                  </select>
+                </div>
+              </div>
+              <div className="flex gap-3 mt-4">
+                <Btn variant="accent" onClick={handleAdd}><Save size={14} /> Add Faculty</Btn>
+                <Btn variant="secondary" onClick={() => setAdding(false)}>Cancel</Btn>
+              </div>
+            </Card>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={15} />
+        <input className="w-full bg-white border border-gray-200 rounded-xl py-2.5 pl-9 pr-4 text-sm outline-none" placeholder="Search faculty..." value={search} onChange={e => setSearch(e.target.value)} />
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {filtered.map(t => (
+          <Card key={t.id}>
+            <div className="flex items-start gap-4">
+              <div className="w-12 h-12 rounded-2xl bg-slate-800 flex items-center justify-center text-white font-bold text-sm shrink-0">
+                {t.name.replace('Dr. ', '').split(' ').map(n => n[0]).join('').slice(0, 2)}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap mb-1">
+                  <h3 className="font-bold text-slate-800">{t.name}</h3>
+                  <Badge variant={desigVariant[t.designation] || 'default'}>{t.designation}</Badge>
+                </div>
+                <p className="text-sm text-amber-600 font-semibold">{t.subject}</p>
+                <p className="text-[11px] text-slate-400 mt-1">{t.department} · <span className="font-mono">{t.id}</span></p>
+                <p className="text-[11px] text-slate-400">{t.email}</p>
+              </div>
+            </div>
+          </Card>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+const AdminAttendance = ({ students, setStudents }: { students: Student[]; setStudents: React.Dispatch<React.SetStateAction<Student[]>> }) => {
+  const [marking, setMarking] = useState(false);
+  const [marks, setMarks] = useState<Record<string, 'P' | 'L' | 'A'>>({});
+  const low = students.filter(s => s.attendance < 75);
+
+  const submitAttendance = () => {
+    setStudents(prev => prev.map(s => {
+      const mark = marks[s.id];
+      if (mark === 'A') return { ...s, attendance: Math.max(0, s.attendance - 2) };
+      if (mark === 'P') return { ...s, attendance: Math.min(100, s.attendance + 1) };
+      return s;
+    }));
+    setMarks({}); setMarking(false);
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="flex justify-between items-center flex-wrap gap-4">
+        <div>
+          <h1 className="text-2xl font-black text-slate-800">Attendance Management</h1>
+          <p className="text-sm text-slate-500">{new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}</p>
+        </div>
+        <Btn variant="accent" onClick={() => setMarking(!marking)}>
+          <CalendarCheck size={16} /> {marking ? 'Cancel' : 'Mark Attendance'}
+        </Btn>
+      </div>
+
+      <div className="grid grid-cols-3 gap-4">
+        <StatCard label="Est. Present Today" value="94%" icon={CheckCircle2} color="text-emerald-500" />
+        <StatCard label="Avg Attendance" value={(students.reduce((a, s) => a + s.attendance, 0) / students.length).toFixed(1) + '%'} icon={BarChart3} color="text-amber-500" />
+        <StatCard label="Below 75%" value={low.length} icon={AlertCircle} sub="At risk" color="text-red-500" />
+      </div>
+
+      <AnimatePresence>
+        {marking && (
+          <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
+            <Card>
+              <h3 className="font-bold text-slate-800 mb-1">Mark Today's Attendance</h3>
+              <p className="text-sm text-slate-400 mb-4">P = Present · L = Late · A = Absent</p>
+              <div className="space-y-2 max-h-72 overflow-y-auto">
+                {students.map(s => (
+                  <div key={s.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
+                    <div className="flex items-center gap-3">
+                      <span className="text-sm font-bold text-slate-700">{s.name}</span>
+                      <span className="text-xs text-slate-400 hidden sm:block">{s.studentId}</span>
+                    </div>
+                    <div className="flex gap-2">
+                      {(['P', 'L', 'A'] as const).map(st => (
+                        <button key={st} onClick={() => setMarks(p => ({ ...p, [s.id]: st }))}
+                          className={`w-9 h-9 rounded-lg font-bold text-xs transition-all border ${marks[s.id] === st
+                            ? st === 'P' ? 'bg-emerald-500 text-white border-emerald-500' : st === 'A' ? 'bg-red-500 text-white border-red-500' : 'bg-amber-500 text-white border-amber-500'
+                            : 'border-gray-200 text-slate-400 hover:border-slate-300'}`}
+                        >{st}</button>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="flex gap-3 mt-4">
+                <Btn variant="accent" onClick={submitAttendance}><Save size={14} /> Submit</Btn>
+                <Btn variant="secondary" onClick={() => setMarking(false)}>Cancel</Btn>
+              </div>
+            </Card>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <Card>
+        <h2 className="font-bold text-slate-800 mb-4">All Students — Attendance Records</h2>
+        <div className="space-y-3">
+          {students.map(s => (
+            <div key={s.id} className="flex items-center gap-4">
+              <div className="w-9 h-9 rounded-xl bg-slate-100 flex items-center justify-center font-bold text-slate-500 text-sm shrink-0">{s.name.charAt(0)}</div>
+              <div className="flex-1 min-w-0">
+                <div className="flex justify-between items-center mb-1">
+                  <p className="text-sm font-semibold text-slate-700 truncate">{s.name}</p>
+                  <Badge variant={s.attendance >= 75 ? 'success' : 'error'}>{s.attendance}%</Badge>
+                </div>
+                <ProgressBar value={s.attendance} />
+              </div>
+            </div>
+          ))}
+        </div>
+      </Card>
+
+      {low.length > 0 && (
+        <Card className="border-red-100 bg-red-50">
+          <div className="flex items-center gap-2 mb-4">
+            <AlertCircle size={18} className="text-red-500" />
+            <h3 className="font-bold text-red-700">Students Below 75% Threshold</h3>
+          </div>
+          <div className="space-y-2">
+            {low.map(s => (
+              <div key={s.id} className="flex items-center justify-between p-3 bg-white rounded-xl border border-red-100">
+                <div>
+                  <span className="text-sm font-bold text-slate-700">{s.name}</span>
+                  <span className="text-xs text-slate-400 ml-2">{s.studentId}</span>
+                </div>
+                <span className="text-sm font-bold text-red-600">{s.attendance}%</span>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
+    </div>
+  );
+};
+
+const AdminAcademics = ({ students }: { students: Student[] }) => {
+  const globalGpa = (students.reduce((a, s) => a + s.gpa, 0) / students.length).toFixed(2);
+  const gradeData = [
+    { grade: 'A+', count: 18, color: 'bg-emerald-500' }, { grade: 'A', count: 32, color: 'bg-emerald-400' },
+    { grade: 'B+', count: 45, color: 'bg-amber-400' }, { grade: 'B', count: 38, color: 'bg-amber-300' },
+    { grade: 'C', count: 22, color: 'bg-orange-400' }, { grade: 'D', count: 12, color: 'bg-red-400' },
+    { grade: 'F', count: 5, color: 'bg-red-600' },
+  ];
+  const maxCount = Math.max(...gradeData.map(g => g.count));
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-black text-slate-800">Academic Performance</h1>
+        <p className="text-sm text-slate-500">Consolidated grade analytics — Fall 2025</p>
+      </div>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatCard label="Institution GPA" value={globalGpa} icon={TrendingUp} color="text-emerald-500" />
+        <StatCard label="Honor Roll" value="24" icon={CheckCircle2} sub="Students" color="text-amber-500" />
+        <StatCard label="Courses Active" value={ALL_COURSES.length} icon={FileText} color="text-blue-500" />
+        <StatCard label="Failing Students" value="5" icon={AlertCircle} color="text-red-500" />
+      </div>
+
+      <Card>
+        <h2 className="font-bold text-slate-800 mb-6">Grade Distribution</h2>
+        <div className="h-44 flex items-end gap-2 border-b border-l border-gray-100 px-2">
+          {gradeData.map((g, i) => (
+            <div key={i} className="flex-1 flex flex-col items-center gap-2 h-full justify-end">
+              <motion.div initial={{ height: 0 }} animate={{ height: `${(g.count / maxCount) * 100}%` }}
+                className={`w-full rounded-t-lg ${g.color} relative group`}>
+                <div className="absolute -top-6 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[10px] px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 whitespace-nowrap">{g.count}</div>
+              </motion.div>
+              <span className="text-[11px] font-bold text-slate-400">{g.grade}</span>
+            </div>
+          ))}
+        </div>
+      </Card>
+
+      <Card>
+        <h2 className="font-bold text-slate-800 mb-4">Course Offerings</h2>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left">
+            <thead>
+              <tr className="border-b border-gray-100">
+                {['Code', 'Course', 'Credits', 'Department', 'Faculty'].map(h => (
+                  <th key={h} className="pb-3 text-[11px] font-bold uppercase tracking-wider text-slate-400 pr-5">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {ALL_COURSES.map(c => {
+                const teacher = INITIAL_FACULTY.find(f => f.id === c.facultyId);
+                return (
+                  <tr key={c.code} className="hover:bg-gray-50">
+                    <td className="py-3 pr-5 font-mono text-xs font-bold text-amber-600 whitespace-nowrap">{c.code}</td>
+                    <td className="py-3 pr-5 text-sm font-semibold text-slate-700">{c.name}</td>
+                    <td className="py-3 pr-5 text-sm text-slate-500">{c.credits}</td>
+                    <td className="py-3 pr-5 text-sm text-slate-500 whitespace-nowrap">{c.department}</td>
+                    <td className="py-3 text-sm text-slate-500">{teacher?.name || '—'}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </Card>
+
+      <Card>
+        <h2 className="font-bold text-slate-800 mb-4">GPA Rankings</h2>
+        <div className="space-y-2">
+          {[...students].sort((a, b) => b.gpa - a.gpa).map((s, i) => (
+            <div key={s.id} className="flex items-center gap-3 p-3 rounded-xl hover:bg-gray-50">
+              <span className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-black shrink-0 ${i === 0 ? 'bg-amber-400 text-slate-900' : i === 1 ? 'bg-gray-200 text-slate-700' : i === 2 ? 'bg-orange-200 text-orange-800' : 'bg-gray-100 text-slate-500'}`}>{i + 1}</span>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-bold text-slate-700">{s.name}</p>
+                <p className="text-xs text-slate-400">{s.department}</p>
+              </div>
+              <span className={`text-sm font-black ${s.gpa >= 3.7 ? 'text-emerald-600' : s.gpa >= 3.0 ? 'text-amber-600' : 'text-red-500'}`}>{s.gpa.toFixed(2)}</span>
+            </div>
+          ))}
+        </div>
+      </Card>
+    </div>
+  );
+};
+
+const AdminActivity = () => {
+  const items = [
+    { user: 'System', action: 'Automated backup completed successfully', time: '2 min ago', type: 'success' },
+    { user: 'Admin', action: 'Updated attendance for CS-501 (32 students)', time: '15 min ago', type: 'info' },
+    { user: 'System', action: 'Grade submission deadline reminder sent', time: '1h ago', type: 'warning' },
+    { user: 'Dr. Ahmed Khan', action: 'Uploaded midterm results for AI-503', time: '2h ago', type: 'info' },
+    { user: 'System', action: 'New student 23k0905 registered successfully', time: '3h ago', type: 'success' },
+    { user: 'Admin', action: 'Faculty schedule updated for next week', time: '5h ago', type: 'info' },
+    { user: 'System', action: 'Low attendance alert: David Miller (78%)', time: '1d ago', type: 'error' },
+    { user: 'Sara Ali', action: 'Assignment 3 marks uploaded for SE-401', time: '1d ago', type: 'info' },
+    { user: 'System', action: 'Semester mid-term period commenced', time: '2d ago', type: 'warning' },
+    { user: 'Admin', action: 'New course CS-504 Network Security added', time: '3d ago', type: 'success' },
+  ];
+  const bg: Record<string, string> = { success: 'bg-emerald-50 border-emerald-200', error: 'bg-red-50 border-red-200', warning: 'bg-amber-50 border-amber-200', info: 'bg-blue-50 border-blue-200' };
+  const dot: Record<string, string> = { success: 'bg-emerald-500', error: 'bg-red-500', warning: 'bg-amber-500', info: 'bg-blue-500' };
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-black text-slate-800">Activity Log</h1>
+        <p className="text-sm text-slate-500">System-wide audit trail</p>
+      </div>
+      <div className="space-y-3">
+        {items.map((a, i) => (
+          <motion.div key={i} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.04 }}>
+            <div className={`flex items-start gap-4 p-4 rounded-2xl border ${bg[a.type]}`}>
+              <div className={`w-2.5 h-2.5 rounded-full ${dot[a.type]} mt-1.5 shrink-0`} />
+              <div className="flex-1">
+                <p className="text-sm text-slate-700"><span className="font-bold">{a.user}</span> — {a.action}</p>
+                <p className="text-[11px] text-slate-400 mt-0.5">{a.time}</p>
+              </div>
+            </div>
+          </motion.div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+const AdminSystems = () => {
+  const [notifs, setNotifs] = useState({ grades: true, attendance: true, announcements: false, messages: true });
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-black text-slate-800">System Settings</h1>
+        <p className="text-sm text-slate-500">Configure platform preferences</p>
+      </div>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Card>
+          <div className="flex items-center gap-3 mb-5">
+            <div className="w-10 h-10 bg-amber-50 rounded-xl flex items-center justify-center"><Bell size={20} className="text-amber-500" /></div>
+            <h2 className="font-bold text-slate-800">Notification Settings</h2>
+          </div>
+          <div className="space-y-3">
+            {Object.entries(notifs).map(([key, val]) => (
+              <div key={key} className="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
+                <p className="text-sm font-semibold text-slate-700 capitalize">{key.replace(/([A-Z])/g, ' $1').trim()}</p>
+                <button onClick={() => setNotifs(p => ({ ...p, [key]: !val }))}
+                  className={`w-11 h-6 rounded-full transition-colors relative ${val ? 'bg-amber-400' : 'bg-gray-200'}`}>
+                  <div className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all duration-200 ${val ? 'left-[22px]' : 'left-0.5'}`} />
+                </button>
+              </div>
+            ))}
+          </div>
+        </Card>
+
+        <Card>
+          <div className="flex items-center gap-3 mb-5">
+            <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center"><Shield size={20} className="text-blue-500" /></div>
+            <h2 className="font-bold text-slate-800">Security Overview</h2>
+          </div>
+          <div className="space-y-3">
+            {[
+              { label: '2FA Authentication', status: 'Enabled', ok: true },
+              { label: 'Last Backup', status: '2 hours ago', ok: true },
+              { label: 'SSL Certificate', status: 'Valid — 182 days', ok: true },
+              { label: 'Pending Updates', status: 'None', ok: true },
+            ].map(item => (
+              <div key={item.label} className="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
+                <p className="text-sm font-medium text-slate-700">{item.label}</p>
+                <Badge variant={item.ok ? 'success' : 'error'}>{item.status}</Badge>
+              </div>
+            ))}
+          </div>
+        </Card>
+
+        <Card>
+          <div className="flex items-center gap-3 mb-5">
+            <div className="w-10 h-10 bg-emerald-50 rounded-xl flex items-center justify-center"><Database size={20} className="text-emerald-500" /></div>
+            <h2 className="font-bold text-slate-800">Data Management</h2>
+          </div>
+          <div className="space-y-3">
+            <div className="p-4 bg-emerald-50 rounded-xl border border-emerald-100">
+              <p className="text-sm font-bold text-emerald-700">All records healthy — 0 errors detected</p>
+            </div>
+            <Btn variant="secondary" fullWidth><Download size={14} /> Export All Data (CSV)</Btn>
+            <Btn variant="secondary" fullWidth><Activity size={14} /> Run Integrity Check</Btn>
+          </div>
+        </Card>
+
+        <Card>
+          <div className="flex items-center gap-3 mb-5">
+            <div className="w-10 h-10 bg-slate-100 rounded-xl flex items-center justify-center"><Settings size={20} className="text-slate-500" /></div>
+            <h2 className="font-bold text-slate-800">Platform Preferences</h2>
+          </div>
+          <div className="space-y-4">
+            <Inp label="Institution Name" defaultValue="Campus AI University" />
+            <Inp label="Academic Year" defaultValue="2025-2026" />
+            <Btn variant="accent"><Save size={14} /> Save Settings</Btn>
+          </div>
+        </Card>
+      </div>
+
+      <Card className="border-red-100 bg-red-50">
+        <h3 className="font-bold text-red-700 mb-2">Danger Zone</h3>
+        <p className="text-sm text-red-600 mb-4">These actions are irreversible. Proceed with caution.</p>
+        <div className="flex gap-3 flex-wrap">
+          <Btn variant="danger">Reset All Attendance</Btn>
+          <Btn variant="danger">Clear Activity Logs</Btn>
+        </div>
+      </Card>
+    </div>
+  );
+};
+
+// ─────────────────────────────────────────────
+// STUDENT TAB CONTENTS
+// ─────────────────────────────────────────────
+const StudentOverview = ({ student, setActiveTab }: { student: Student; setActiveTab: (t: string) => void }) => {
+  const courses = ALL_COURSES.filter(c => c.department === student.department).slice(0, 4);
+
+  return (
+    <div className="space-y-6">
+      <Card className="bg-slate-900 text-white border-none">
+        <div className="flex items-start justify-between gap-4 flex-wrap">
+          <div className="flex items-center gap-4">
+            <div className="w-16 h-16 bg-amber-400 rounded-2xl flex items-center justify-center text-slate-900 font-black text-2xl shrink-0">{student.name.charAt(0)}</div>
+            <div>
+              <h1 className="text-xl font-black">{student.name}</h1>
+              <p className="text-amber-400 text-sm font-bold mt-0.5">{student.studentId}</p>
+              <p className="text-slate-400 text-xs mt-0.5">{student.department} · {student.batch || 'Fall 2024'}</p>
+            </div>
+          </div>
+          <div className="flex gap-6">
+            <div className="text-center">
+              <p className="text-2xl font-black text-amber-400">{student.gpa.toFixed(2)}</p>
+              <p className="text-[11px] text-slate-400 uppercase tracking-wider">GPA</p>
+            </div>
+            <div className="text-center">
+              <p className={`text-2xl font-black ${student.attendance >= 75 ? 'text-emerald-400' : 'text-red-400'}`}>{student.attendance}%</p>
+              <p className="text-[11px] text-slate-400 uppercase tracking-wider">Attendance</p>
+            </div>
+          </div>
+        </div>
+      </Card>
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div onClick={() => setActiveTab('Transcript')} className="cursor-pointer">
+          <StatCard label="Academic Standing" value={student.gpa >= 3.5 ? "Dean's List" : 'Good Standing'} icon={GraduationCap} sub="Tap to view transcript" />
+        </div>
+        <div onClick={() => setActiveTab('Attendance')} className="cursor-pointer">
+          <StatCard label="Attendance" value={`${student.attendance}%`} icon={CalendarCheck} sub="Tap for details" color={student.attendance >= 75 ? 'text-emerald-500' : 'text-red-500'} />
+        </div>
+        <div onClick={() => setActiveTab('Marks')} className="cursor-pointer">
+          <StatCard label="Current GPA" value={student.gpa.toFixed(2)} icon={BarChart3} sub="Tap for marks" color="text-blue-500" />
+        </div>
+        <div onClick={() => setActiveTab('Faculty')} className="cursor-pointer">
+          <StatCard label="Enrolled Courses" value={courses.length} icon={FileText} sub="Tap for faculty" color="text-purple-500" />
+        </div>
+      </div>
+
+      <Card>
+        <h2 className="font-bold text-slate-800 mb-4">Enrolled Courses</h2>
+        <div className="space-y-3">
+          {courses.map(c => {
+            const teacher = INITIAL_FACULTY.find(f => f.id === c.facultyId);
+            return (
+              <div key={c.code} className="flex items-center justify-between p-4 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-slate-800 rounded-xl flex items-center justify-center text-amber-400 font-black text-xs shrink-0">{c.credits}cr</div>
+                  <div>
+                    <p className="font-bold text-slate-700">{c.name}</p>
+                    <p className="text-xs text-slate-400">{c.code} · {teacher?.name || 'TBA'}</p>
+                  </div>
+                </div>
+                <Badge variant="default">{c.credits} credits</Badge>
+              </div>
+            );
+          })}
+        </div>
+      </Card>
+
+      <Card className="bg-amber-50 border-amber-100">
+        <h2 className="font-bold text-slate-800 mb-4 flex items-center gap-2"><Bell size={18} className="text-amber-500" /> Recent Notifications</h2>
+        <div className="space-y-3">
+          {[
+            { msg: 'New grades released: Data Structures (CS-501)', time: '1h ago', type: 'success' },
+            { msg: student.attendance >= 75 ? 'Attendance is on track — keep it up!' : 'Warning: Attendance below required threshold', time: '4h ago', type: student.attendance >= 75 ? 'info' : 'error' },
+            { msg: 'Lab session rescheduled to H-202 this Thursday', time: '1d ago', type: 'warning' },
+          ].map((n, i) => (
+            <div key={i} className="flex gap-3 p-3 bg-white rounded-xl border border-amber-100">
+              <div className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${n.type === 'success' ? 'bg-emerald-500' : n.type === 'error' ? 'bg-red-500' : n.type === 'warning' ? 'bg-amber-500' : 'bg-blue-500'}`} />
+              <div>
+                <p className="text-sm text-slate-700">{n.msg}</p>
+                <p className="text-[11px] text-slate-400 mt-0.5">{n.time}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </Card>
+    </div>
+  );
+};
+
+const getGrade = (pct: number) => {
+  if (pct >= 90) return { grade: 'A+', gp: 4.0 };
+  if (pct >= 85) return { grade: 'A', gp: 4.0 };
+  if (pct >= 80) return { grade: 'A-', gp: 3.7 };
+  if (pct >= 75) return { grade: 'B+', gp: 3.3 };
+  if (pct >= 70) return { grade: 'B', gp: 3.0 };
+  if (pct >= 65) return { grade: 'B-', gp: 2.7 };
+  if (pct >= 60) return { grade: 'C+', gp: 2.3 };
+  if (pct >= 55) return { grade: 'C', gp: 2.0 };
+  if (pct >= 50) return { grade: 'D', gp: 1.0 };
+  return { grade: 'F', gp: 0.0 };
+};
+
+const getStudentCourseMarks = (student: Student, allMarks: Marks[]) => {
+  const courses = ALL_COURSES.filter(c => c.department === student.department).slice(0, 4);
+  return courses.map(c => {
+    const m = allMarks.find(x => (x.studentId === student.id || x.studentId === student.studentId) && x.courseCode === c.code)
+              || { studentId: student.id, courseCode: c.code, mid: 22, final: 54, assignment: 11, quiz: 7 };
+    const total = m.mid + m.final + m.assignment + m.quiz;
+    const pct = Math.round((total / 125) * 100);
+    const { grade, gp } = getGrade(pct);
+    return { ...c, ...m, total, pct, grade, gp };
+  });
+};
+
+const StudentTranscript = ({ student, marks }: { student: Student; marks: Marks[] }) => {
+  const myMarks = getStudentCourseMarks(student, marks);
+  const totalCredits = myMarks.reduce((a, m) => a + m.credits, 0);
+  const gpa = totalCredits ? (myMarks.reduce((a, m) => a + m.gp * m.credits, 0) / totalCredits).toFixed(2) : '0.00';
+
+  return (
+    <div className="space-y-6">
+      <div className="flex justify-between items-start flex-wrap gap-4">
+        <div>
+          <h1 className="text-2xl font-black text-slate-800">Academic Transcript</h1>
+          <p className="text-sm text-slate-500">Spring 2025 — Official Record</p>
+        </div>
+        <Btn variant="secondary"><Download size={14} /> Download PDF</Btn>
+      </div>
+
+      <div className="grid grid-cols-3 gap-4">
+        <Card className="bg-slate-900 text-white border-none text-center">
+          <p className="text-3xl font-black text-amber-400">{gpa}</p>
+          <p className="text-xs text-slate-400 mt-1 uppercase tracking-wider">Semester GPA</p>
+        </Card>
+        <Card className="text-center">
+          <p className="text-3xl font-black text-slate-800">{totalCredits}</p>
+          <p className="text-xs text-slate-500 mt-1 uppercase tracking-wider">Credits Attempted</p>
+        </Card>
+        <Card className="text-center">
+          <p className="text-3xl font-black text-slate-800">{totalCredits}/128</p>
+          <p className="text-xs text-slate-500 mt-1 uppercase tracking-wider">Degree Progress</p>
+        </Card>
+      </div>
+
+      <Card className="p-0 overflow-hidden">
+        <div className="px-6 py-4 bg-slate-800 text-white"><p className="text-sm font-bold uppercase tracking-wider">Spring 2025 Grade Sheet</p></div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left">
+            <thead>
+              <tr className="border-b border-gray-100 bg-gray-50">
+                {['Course', 'Code', 'Cr', 'Quiz', 'Assign', 'Mid', 'Final', 'Total', 'Grade', 'GP'].map(h => (
+                  <th key={h} className="px-4 py-3 text-[11px] font-bold uppercase tracking-wider text-slate-400 whitespace-nowrap">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {myMarks.map(m => (
+                <tr key={m.code} className="hover:bg-gray-50">
+                  <td className="px-4 py-4 text-sm font-bold text-slate-800 whitespace-nowrap">{m.name}</td>
+                  <td className="px-4 py-4 text-xs font-mono text-amber-600 whitespace-nowrap">{m.code}</td>
+                  <td className="px-4 py-4 text-sm text-slate-500">{m.credits}</td>
+                  <td className="px-4 py-4 text-sm text-slate-600">{m.quiz}</td>
+                  <td className="px-4 py-4 text-sm text-slate-600">{m.assignment}</td>
+                  <td className="px-4 py-4 text-sm font-bold text-slate-700">{m.mid}</td>
+                  <td className="px-4 py-4 text-sm font-bold text-slate-700">{m.final}</td>
+                  <td className="px-4 py-4">
+                    <span className={`text-sm font-black ${m.pct >= 75 ? 'text-emerald-600' : m.pct >= 50 ? 'text-amber-600' : 'text-red-600'}`}>{m.total}/125</span>
+                  </td>
+                  <td className="px-4 py-4">
+                    <span className={`text-sm font-black ${m.grade === 'F' ? 'text-red-600' : m.grade.startsWith('A') ? 'text-emerald-600' : 'text-amber-600'}`}>{m.grade}</span>
+                  </td>
+                  <td className="px-4 py-4 text-sm font-bold text-slate-700">{m.gp.toFixed(1)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <div className="px-6 py-4 bg-gray-50 border-t border-gray-100 flex justify-end gap-8">
+          <div className="text-right">
+            <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Semester GPA</p>
+            <p className="text-xl font-black text-slate-800">{gpa}</p>
+          </div>
+        </div>
+      </Card>
+    </div>
+  );
+};
+
+const StudentAttendance = ({ student, attendance }: { student: Student; attendance: AttendanceRecord[] }) => {
+  const courses = ALL_COURSES.filter(c => c.department === student.department).slice(0, 4);
+  const myRecords = courses.map(c => {
+    const r = attendance.find(x => (x.studentId === student.id || x.studentId === student.studentId) && x.courseCode === c.code)
+              || { studentId: student.id, courseCode: c.code, total: 28, attended: Math.round(28 * student.attendance / 100) };
+    const pct = Math.min(100, Math.round((r.attended / r.total) * 100));
+    return { ...c, ...r, pct };
+  });
+
+  const overall = myRecords.length ? Math.round(myRecords.reduce((a, r) => a + r.pct, 0) / myRecords.length) : student.attendance;
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-black text-slate-800">Attendance Overview</h1>
+        <p className="text-sm text-slate-500">Current semester attendance records</p>
+      </div>
+
+      <div className="grid grid-cols-3 gap-4">
+        <Card className={`text-center ${overall < 75 ? 'bg-red-50 border-red-100' : 'bg-emerald-50 border-emerald-100'}`}>
+          <p className={`text-3xl font-black ${overall < 75 ? 'text-red-600' : 'text-emerald-600'}`}>{overall}%</p>
+          <p className="text-xs text-slate-500 mt-1">Overall Attendance</p>
+        </Card>
+        <Card className="text-center">
+          <p className="text-3xl font-black text-slate-800">{myRecords.reduce((a, r) => a + r.attended, 0)}</p>
+          <p className="text-xs text-slate-500 mt-1">Classes Attended</p>
+        </Card>
+        <Card className="text-center">
+          <p className="text-3xl font-black text-red-500">{myRecords.reduce((a, r) => a + (r.total - r.attended), 0)}</p>
+          <p className="text-xs text-slate-500 mt-1">Classes Missed</p>
+        </Card>
+      </div>
+
+      {overall < 75 && (
+        <div className="flex items-center gap-3 p-4 bg-red-50 rounded-2xl border border-red-100">
+          <AlertCircle size={20} className="text-red-500 shrink-0" />
+          <p className="text-sm text-red-700 font-semibold">Your attendance is below 75%. Minimum required for final exams is 75%.</p>
+        </div>
+      )}
+
+      <Card>
+        <h2 className="font-bold text-slate-800 mb-5">Subject-wise Attendance</h2>
+        <div className="space-y-5">
+          {myRecords.map(r => (
+            <div key={r.code}>
+              <div className="flex justify-between items-center mb-2">
+                <div>
+                  <p className="text-sm font-bold text-slate-700">{r.name}</p>
+                  <p className="text-xs text-slate-400">{r.code} · {r.attended}/{r.total} classes</p>
+                </div>
+                <Badge variant={r.pct >= 75 ? 'success' : r.pct >= 60 ? 'warning' : 'error'}>{r.pct}%</Badge>
+              </div>
+              <ProgressBar value={r.attended} max={r.total} />
+            </div>
+          ))}
+        </div>
+      </Card>
+
+      <Card>
+        <h2 className="font-bold text-slate-800 mb-4">Monthly Heatmap</h2>
+        <div className="grid grid-cols-7 gap-2">
+          {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map(d => (
+            <div key={d} className="text-center text-[11px] font-bold text-slate-400 pb-1">{d}</div>
+          ))}
+          {Array.from({ length: 35 }).map((_, i) => {
+            const day = i - 2;
+            const valid = day > 0 && day <= 30;
+            const seed = day + student.attendance;
+            const status = !valid ? null : seed % 11 === 0 ? 'absent' : seed % 7 === 0 ? 'late' : 'present';
+            const cls = !valid ? 'opacity-0' : status === 'absent' ? 'bg-red-400 text-white' : status === 'late' ? 'bg-amber-300 text-slate-800' : 'bg-emerald-400 text-white';
+            return (
+              <div key={i} className={`aspect-square rounded-lg flex items-center justify-center text-xs font-bold transition-transform hover:scale-110 ${cls}`}>
+                {valid ? day : ''}
+              </div>
+            );
+          })}
+        </div>
+        <div className="flex gap-6 mt-4 justify-center">
+          {[{ label: 'Present', color: 'bg-emerald-400' }, { label: 'Late', color: 'bg-amber-300' }, { label: 'Absent', color: 'bg-red-400' }].map(l => (
+            <div key={l.label} className="flex items-center gap-2 text-[11px] text-slate-500">
+              <div className={`w-3 h-3 rounded ${l.color}`} /> {l.label}
+            </div>
+          ))}
+        </div>
+      </Card>
+    </div>
+  );
+};
+
+const StudentMarks = ({ student, marks }: { student: Student; marks: Marks[] }) => {
+  const myMarks = getStudentCourseMarks(student, marks);
+
+  return (
+    <div className="space-y-6">
+      <div className="flex justify-between items-start flex-wrap gap-4">
+        <div>
+          <h1 className="text-2xl font-black text-slate-800">Examination Marks</h1>
+          <p className="text-sm text-slate-500">Component-wise score breakdown</p>
+        </div>
+        <Btn variant="secondary"><Download size={14} /> Export</Btn>
+      </div>
+
+      <div className="grid grid-cols-3 gap-4">
+        <StatCard label="Average Score" value={myMarks.length ? Math.round(myMarks.reduce((a, m) => a + m.pct, 0) / myMarks.length) + '%' : '—'} icon={TrendingUp} color="text-emerald-500" />
+        <StatCard label="Best Performance" value={myMarks.length ? Math.max(...myMarks.map(m => m.total)) + '/125' : '—'} icon={CheckCircle2} color="text-amber-500" />
+        <StatCard label="Courses Taken" value={myMarks.length} icon={FileText} color="text-blue-500" />
+      </div>
+
+      <Card className="p-0 overflow-hidden">
+        <div className="px-6 py-4 bg-slate-800 text-white flex justify-between items-center flex-wrap gap-2">
+          <p className="text-sm font-bold uppercase tracking-wider">Score Breakdown</p>
+          <p className="text-xs text-slate-400">Mid(30) · Final(70) · Assign(15) · Quiz(10) = 125 total</p>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left">
+            <thead>
+              <tr className="border-b border-gray-100 bg-gray-50">
+                {['Course', 'Mid /30', 'Final /70', 'Assign /15', 'Quiz /10', 'Total /125', 'Grade'].map(h => (
+                  <th key={h} className="px-4 py-3 text-[11px] font-bold uppercase tracking-wider text-slate-400 whitespace-nowrap">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {myMarks.map(m => (
+                <tr key={m.code} className="hover:bg-gray-50">
+                  <td className="px-4 py-4">
+                    <p className="text-sm font-bold text-slate-800">{m.name}</p>
+                    <p className="text-xs font-mono text-amber-600">{m.code}</p>
+                  </td>
+                  <td className="px-4 py-4">
+                    <p className="text-sm font-bold text-slate-700">{m.mid}</p>
+                    <div className="w-14 h-1 bg-gray-100 rounded-full mt-1 overflow-hidden"><div className="h-full bg-blue-400 rounded-full" style={{ width: `${(m.mid / 30) * 100}%` }} /></div>
+                  </td>
+                  <td className="px-4 py-4">
+                    <p className="text-sm font-bold text-slate-700">{m.final}</p>
+                    <div className="w-14 h-1 bg-gray-100 rounded-full mt-1 overflow-hidden"><div className="h-full bg-emerald-400 rounded-full" style={{ width: `${(m.final / 70) * 100}%` }} /></div>
+                  </td>
+                  <td className="px-4 py-4 text-sm text-slate-600">{m.assignment}</td>
+                  <td className="px-4 py-4 text-sm text-slate-600">{m.quiz}</td>
+                  <td className="px-4 py-4">
+                    <span className={`text-sm font-black ${m.pct >= 75 ? 'text-emerald-600' : m.pct >= 50 ? 'text-amber-600' : 'text-red-600'}`}>{m.total}</span>
+                    <span className="text-xs text-slate-400 ml-1">({m.pct}%)</span>
+                  </td>
+                  <td className="px-4 py-4">
+                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-xs font-black ${m.grade === 'F' ? 'bg-red-100 text-red-700' : m.grade.startsWith('A') ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>{m.grade}</div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </Card>
+
+      <Card>
+        <h2 className="font-bold text-slate-800 mb-4">Performance Chart</h2>
+        <div className="h-36 flex items-end gap-3 border-b border-l border-gray-100 px-2">
+          {myMarks.map((m, i) => (
+            <div key={i} className="flex-1 flex flex-col items-center gap-1 h-full justify-end">
+              <motion.div initial={{ height: 0 }} animate={{ height: `${m.pct}%` }}
+                className={`w-full rounded-t-lg relative group ${m.pct >= 75 ? 'bg-emerald-400' : m.pct >= 50 ? 'bg-amber-400' : 'bg-red-400'}`}>
+                <div className="absolute -top-6 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[10px] px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 whitespace-nowrap">{m.pct}%</div>
+              </motion.div>
+              <span className="text-[10px] font-bold text-slate-400 text-center">{m.code}</span>
+            </div>
+          ))}
+        </div>
+      </Card>
+    </div>
+  );
+};
+
+const StudentFaculty = ({ student }: { student: Student }) => {
+  const myFaculty = INITIAL_FACULTY.filter(f => f.department === student.department);
+  const desigVariant: Record<string, string> = { 'Professor': 'info', 'Assistant Professor': 'accent', 'Lecturer': 'default' };
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-black text-slate-800">Your Instructors</h1>
+        <p className="text-sm text-slate-500">Faculty for {student.department}</p>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {myFaculty.map(t => (
+          <Card key={t.id}>
+            <div className="flex items-start gap-4">
+              <div className="w-12 h-12 rounded-2xl bg-slate-800 flex items-center justify-center text-amber-400 font-black text-sm shrink-0">
+                {t.name.replace('Dr. ', '').split(' ').map(n => n[0]).join('').slice(0, 2)}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-start gap-2 flex-wrap mb-1">
+                  <h3 className="font-bold text-slate-800">{t.name}</h3>
+                  <Badge variant={desigVariant[t.designation] || 'default'}>{t.designation}</Badge>
+                </div>
+                <p className="text-sm text-amber-600 font-semibold">{t.subject}</p>
+                <p className="text-[11px] text-slate-400 mt-1">{t.email}</p>
+              </div>
+            </div>
+            <div className="mt-4 pt-3 border-t border-gray-100 flex justify-end">
+              <Btn variant="ghost" className="text-xs py-1 px-3"><Mail size={12} /> Contact</Btn>
+            </div>
+          </Card>
+        ))}
+      </div>
+
+      <Card className="bg-amber-50 border-amber-100">
+        <div className="flex items-start gap-4">
+          <div className="w-10 h-10 bg-amber-400 rounded-xl flex items-center justify-center shrink-0"><Bell size={18} className="text-slate-900" /></div>
+          <div>
+            <h3 className="font-bold text-slate-800">Office Hours & Advisory</h3>
+            <p className="text-sm text-slate-600 mt-1">Faculty advisors available Tue & Thu, 2:00–4:00 PM in Block B, Office 302. For urgent queries, email directly or visit the departmental office.</p>
+          </div>
+        </div>
+      </Card>
+    </div>
+  );
+};
+
+const StudentActivity = () => {
+  const items = [
+    { msg: 'New grades released: Data Structures (CS-501)', time: '1h ago', type: 'success' },
+    { msg: 'Assignment 3 submitted successfully', time: '3h ago', type: 'info' },
+    { msg: 'Lab session rescheduled to H-202 on Thursday', time: '1d ago', type: 'warning' },
+    { msg: 'Mid-term result: Discrete Math — 28/30', time: '2d ago', type: 'success' },
+    { msg: 'Library book "Clean Code" due in 3 days', time: '2d ago', type: 'warning' },
+    { msg: 'Attendance warning: OS-502 below 80%', time: '3d ago', type: 'error' },
+    { msg: 'Quiz 4 marks uploaded by Dr. Ahmed Khan', time: '4d ago', type: 'info' },
+  ];
+  const bg: Record<string, string> = { success: 'bg-emerald-50 border-emerald-200', error: 'bg-red-50 border-red-200', warning: 'bg-amber-50 border-amber-200', info: 'bg-blue-50 border-blue-200' };
+  const dot: Record<string, string> = { success: 'bg-emerald-500', error: 'bg-red-500', warning: 'bg-amber-500', info: 'bg-blue-500' };
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-black text-slate-800">Activity Feed</h1>
+        <p className="text-sm text-slate-500">Your recent campus updates</p>
+      </div>
+      <div className="space-y-3">
+        {items.map((a, i) => (
+          <motion.div key={i} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.05 }}>
+            <div className={`flex items-start gap-4 p-4 rounded-2xl border ${bg[a.type]}`}>
+              <div className={`w-2.5 h-2.5 rounded-full ${dot[a.type]} mt-1.5 shrink-0`} />
+              <div>
+                <p className="text-sm text-slate-700">{a.msg}</p>
+                <p className="text-[11px] text-slate-400 mt-0.5">{a.time}</p>
+              </div>
+            </div>
+          </motion.div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+// ─────────────────────────────────────────────
+// LAYOUT WRAPPER
+// ─────────────────────────────────────────────
+const DashboardLayout = ({ tabs, activeTab, setActiveTab, headerRight, children }: {
+  tabs: { id: string; label: string; icon: any }[];
+  activeTab: string; setActiveTab: (t: string) => void;
+  headerRight?: React.ReactNode; children: React.ReactNode;
+}) => {
+  const [mobileOpen, setMobileOpen] = useState(false);
+
+  return (
+    <div className="flex h-screen overflow-hidden bg-gray-50">
+      <div className="hidden lg:block w-64 h-full shrink-0">
+        <Sidebar tabs={tabs} activeTab={activeTab} setActiveTab={setActiveTab} />
+      </div>
+
+      <AnimatePresence>
+        {mobileOpen && (
+          <>
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/40 z-40 lg:hidden" onClick={() => setMobileOpen(false)} />
+            <motion.div initial={{ x: '-100%' }} animate={{ x: 0 }} exit={{ x: '-100%' }} transition={{ type: 'tween', duration: 0.25 }}
+              className="fixed inset-y-0 left-0 z-50 w-72 lg:hidden">
+              <Sidebar tabs={tabs} activeTab={activeTab} setActiveTab={setActiveTab} onClose={() => setMobileOpen(false)} />
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      <div className="flex-1 flex flex-col overflow-hidden min-w-0">
+        <header className="bg-white border-b border-gray-100 h-16 flex items-center justify-between px-5 shrink-0">
+          <div className="flex items-center gap-3">
+            <button onClick={() => setMobileOpen(true)} className="lg:hidden p-2 rounded-lg hover:bg-gray-100"><Menu size={20} /></button>
+            <p className="text-sm text-slate-500 hidden sm:block">
+              <span className="text-slate-400">Dashboard</span> <span className="mx-1">/</span>
+              <span className="font-semibold text-slate-700">{activeTab}</span>
+            </p>
+          </div>
+          <div className="flex items-center gap-3">{headerRight}</div>
+        </header>
+        <main className="flex-1 overflow-y-auto p-5 md:p-8">
           <AnimatePresence mode="wait">
-            <motion.div
-              key={location.pathname}
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
-              transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
-            >
+            <motion.div key={activeTab} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -16 }} transition={{ duration: 0.22 }}>
               {children}
             </motion.div>
           </AnimatePresence>
-        </div>
-      </main>
+        </main>
+      </div>
     </div>
   );
 };
 
-const INITIAL_STUDENTS = [
-  { id: '1', name: 'Alexander Pierce', email: 'pierce@campus.edu', department: 'Computer Science', attendance: 85, gpa: 3.8, status: 'Active', studentId: 'STD-2024-102' },
-  { id: '2', name: 'Sarah Smith', email: 'sarah.s@campus.edu', department: 'Business Admin', attendance: 92, gpa: 3.9, status: 'Active', studentId: 'STD-2024-105' },
-  { id: '3', name: 'David Miller', email: 'miller.d@campus.edu', department: 'Mechanical Eng', attendance: 78, gpa: 3.2, status: 'On Probation', studentId: 'STD-2024-110' },
-  { id: '4', name: 'Emily White', email: 'emily.w@campus.edu', department: 'Electrical Eng', attendance: 95, gpa: 4.0, status: 'Active', studentId: 'STD-2024-115' },
-  { id: '5', name: 'Michael Ross', email: 'ross.m@campus.edu', department: 'Law', attendance: 88, gpa: 3.6, status: 'Active', studentId: 'STD-2024-120' },
-  { id: '6', name: 'Jessica Day', email: 'jday@campus.edu', department: 'Fine Arts', attendance: 82, gpa: 3.5, status: 'Active', studentId: 'STD-2024-125' },
-];
-
+// ─────────────────────────────────────────────
+// ROOT APP
+// ─────────────────────────────────────────────
 export default function App() {
-  const [students, setStudents] = useState<any[]>(INITIAL_STUDENTS);
+  const [user, setUser] = useState<User | null>(() => {
+    try { const s = localStorage.getItem('campus_ai_user'); return s ? JSON.parse(s) : null; }
+    catch { return null; }
+  });
+  const [students, setStudents] = useState<Student[]>(INITIAL_STUDENTS);
+  const [faculty, setFaculty] = useState<Faculty[]>(INITIAL_FACULTY);
+  const [marks] = useState<Marks[]>(DEFAULT_MARKS);
+  const [attendance] = useState<AttendanceRecord[]>(DEFAULT_ATTENDANCE);
+  const [adminTab, setAdminTab] = useState('Overview');
+  const [studentTab, setStudentTab] = useState('Overview');
 
-  const addStudent = (student: any) => {
-    setStudents(prev => [{ ...student, id: Date.now().toString() }, ...prev]);
+  const login = (username: string, _pass: string): boolean => {
+    if (username === 'admin' && _pass === 'admin') {
+      const u: User = { id: '0', name: 'John Doe', role: 'admin' };
+      setUser(u); localStorage.setItem('campus_ai_user', JSON.stringify(u)); return true;
+    }
+    if (username.trim().length >= 3) {
+      const existing = students.find(s => s.studentId.toLowerCase() === username.toLowerCase());
+      const name = existing?.name || (username === '23k0905' ? 'Ali Khan' : `Student ${username.toUpperCase()}`);
+      const dept = existing?.department || 'Computer Science';
+      const att = existing?.attendance || 85;
+      const gpa = existing?.gpa || 3.5;
+      const u: User = { id: username, name, role: 'student', studentId: username, department: dept, attendance: att, gpa };
+      if (!existing) {
+        setStudents(prev => [...prev, { id: username, name, email: `${username}@campus.edu`, department: dept, attendance: att, gpa, status: 'Active', studentId: username, batch: 'Fall 2024' }]);
+      }
+      setUser(u); localStorage.setItem('campus_ai_user', JSON.stringify(u)); return true;
+    }
+    return false;
   };
 
-  const updateStudent = (id: string, updates: any) => {
-    setStudents(prev => prev.map(s => s.id === id ? { ...s, ...updates } : s));
+  const logout = () => { setUser(null); localStorage.removeItem('campus_ai_user'); setAdminTab('Overview'); setStudentTab('Overview'); };
+
+  const adminTabs = [
+    { id: 'Overview', label: 'Overview', icon: LayoutDashboard },
+    { id: 'Students', label: 'Students', icon: Users },
+    { id: 'Faculty', label: 'Faculty', icon: UserIcon },
+    { id: 'Attendance', label: 'Attendance', icon: CalendarCheck },
+    { id: 'Academics', label: 'Academics', icon: GraduationCap },
+    { id: 'Activity', label: 'Activity', icon: Activity },
+    { id: 'Systems', label: 'Systems', icon: Settings },
+  ];
+
+  const studentTabs = [
+    { id: 'Overview', label: 'Overview', icon: LayoutDashboard },
+    { id: 'Transcript', label: 'Transcript', icon: GraduationCap },
+    { id: 'Attendance', label: 'Attendance', icon: CalendarCheck },
+    { id: 'Marks', label: 'Marks', icon: BarChart3 },
+    { id: 'Faculty', label: 'Faculty', icon: UserIcon },
+    { id: 'Activity', label: 'Activity', icon: Bell },
+  ];
+
+  const getCurrentStudent = (): Student => {
+    if (!user) return INITIAL_STUDENTS[0];
+    return students.find(s => s.studentId === user.studentId || s.id === user.id) || {
+      id: user.id, name: user.name, email: `${user.studentId}@campus.edu`,
+      department: user.department || 'Computer Science', attendance: user.attendance || 85,
+      gpa: user.gpa || 3.5, status: 'Active', studentId: user.studentId || user.id, batch: 'Fall 2024',
+    };
   };
 
   return (
-    <BrowserRouter>
-      <AppLayout>
-        <Routes>
-          <Route path="/" element={<LoginScreen />} />
-          <Route path="/forgot-password" element={<ForgotPassword />} />
-          <Route path="/dashboard" element={<Dashboard students={students} />} />
-          
-          <Route path="/students" element={<StudentList students={students} onUpdate={updateStudent} />} />
-          <Route path="/students/view" element={<StudentProfileView />} />
-          <Route path="/students/add" element={<StudentForm onAdd={addStudent} />} />
-          
-          <Route path="/attendance" element={<AttendanceOverview students={students} />} />
-          <Route path="/attendance/mark" element={<MarkAttendance students={students} onUpdate={updateStudent} />} />
-          
-          <Route path="/grades" element={<GradesOverview students={students} />} />
-          <Route path="/grades/subject" element={<SubjectPerformance />} />
-          <Route path="/report" element={<StudentReport />} />
-          
-          <Route path="/notifications" element={<NotificationList />} />
-          <Route path="/settings" element={<SettingsPage />} />
-          <Route path="/notification-settings" element={<NotificationSettings />} />
-          <Route path="/usability-testing" element={<UsabilityTesting />} />
-          
-          <Route path="*" element={<Dashboard students={students} />} />
-        </Routes>
-      </AppLayout>
-    </BrowserRouter>
+    <AuthContext.Provider value={{ user, login, logout }}>
+      {!user ? (
+        <LoginScreen />
+      ) : user.role === 'admin' ? (
+        <DashboardLayout tabs={adminTabs} activeTab={adminTab} setActiveTab={setAdminTab}
+          headerRight={
+            <div className="flex items-center gap-3">
+              <div className="relative hidden sm:block">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
+                <input className="bg-gray-50 border border-gray-200 rounded-xl py-1.5 pl-8 pr-3 text-sm outline-none w-44" placeholder="Search..." />
+              </div>
+              <div className="w-8 h-8 rounded-xl bg-amber-400 flex items-center justify-center text-slate-900 font-black text-sm">A</div>
+            </div>
+          }
+        >
+          {adminTab === 'Overview' && <AdminOverview students={students} faculty={faculty} />}
+          {adminTab === 'Students' && <AdminStudents students={students} setStudents={setStudents} />}
+          {adminTab === 'Faculty' && <AdminFaculty faculty={faculty} setFaculty={setFaculty} />}
+          {adminTab === 'Attendance' && <AdminAttendance students={students} setStudents={setStudents} />}
+          {adminTab === 'Academics' && <AdminAcademics students={students} />}
+          {adminTab === 'Activity' && <AdminActivity />}
+          {adminTab === 'Systems' && <AdminSystems />}
+        </DashboardLayout>
+      ) : (
+        <DashboardLayout tabs={studentTabs} activeTab={studentTab} setActiveTab={setStudentTab}
+          headerRight={
+            <div className="flex items-center gap-3">
+              <Badge variant={getCurrentStudent().attendance >= 75 ? 'success' : 'error'} >{getCurrentStudent().attendance}% Attendance</Badge>
+              <div className="w-8 h-8 rounded-xl bg-slate-800 flex items-center justify-center text-amber-400 font-black text-sm">{user.name.charAt(0)}</div>
+            </div>
+          }
+        >
+          {studentTab === 'Overview' && <StudentOverview student={getCurrentStudent()} setActiveTab={setStudentTab} />}
+          {studentTab === 'Transcript' && <StudentTranscript student={getCurrentStudent()} marks={marks} />}
+          {studentTab === 'Attendance' && <StudentAttendance student={getCurrentStudent()} attendance={attendance} />}
+          {studentTab === 'Marks' && <StudentMarks student={getCurrentStudent()} marks={marks} />}
+          {studentTab === 'Faculty' && <StudentFaculty student={getCurrentStudent()} />}
+          {studentTab === 'Activity' && <StudentActivity />}
+        </DashboardLayout>
+      )}
+    </AuthContext.Provider>
   );
 }
-
-const UsabilityTesting = () => {
-    const tasks = [
-        { id: 1, title: 'Login Access', desc: 'Log in using your admin credentials to access the secure portal.', success: 'Reaches Dashboard' },
-        { id: 2, title: 'Student Entry', desc: 'Register a new student: Ali Raza (ID: 24K0001) in Computer Science.', success: 'Record saved to Directory' },
-        { id: 3, title: 'Marking Presence', desc: 'Perform daily roll call: 3 students present, 2 absent.', success: 'Attendance log updated' },
-        { id: 4, title: 'Audit Performance', desc: 'Analyze the grade trend for student Alexander Pierce.', success: 'Viewed performance chart' },
-        { id: 5, title: 'Communication Check', desc: 'Locate and read the latest Low Attendance alert.', success: 'Notification status changed' },
-    ];
-
-    return (
-        <div className="space-y-12 pb-20">
-            <div className="max-w-4xl">
-                <h1 className="text-3xl font-bold text-primary mb-4">Phase 4: Usability Testing</h1>
-                <p className="text-text-secondary">Perform the following standardized tasks to validate the system architecture and interface efficiency.</p>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {tasks.map(task => (
-                    <Card key={task.id} className="border-t-4 border-t-accent flex flex-col">
-                        <div className="flex justify-between items-start mb-4">
-                            <span className="text-[10px] font-black bg-primary text-white px-2 py-0.5 rounded">TASK 0{task.id}</span>
-                            <Badge variant="default">Testing</Badge>
-                        </div>
-                        <h3 className="font-bold text-primary mb-2">{task.title}</h3>
-                        <p className="text-xs text-text-secondary italic mb-6 leading-relaxed">"{task.desc}"</p>
-                        <div className="mt-auto pt-4 border-t border-gray-50">
-                            <p className="text-[10px] font-bold uppercase text-accent">Success Condition:</p>
-                            <p className="text-[10px] font-medium text-primary mt-1">{task.success}</p>
-                        </div>
-                    </Card>
-                ))}
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mt-12">
-                <Card className="bg-primary text-white p-10">
-                    <h2 className="text-xl font-bold mb-8 uppercase tracking-widest text-accent">Internal Metrics</h2>
-                    <div className="space-y-6">
-                        {[
-                            { label: 'Task Completion Rate', val: '94%' },
-                            { label: 'Avg. Time on Task', val: '18.2s' },
-                            { label: 'Error Rate', val: '1.2%' },
-                            { label: 'User Satisfaction', val: '4.8/5' },
-                        ].map(m => (
-                            <div key={m.label} className="flex justify-between items-end border-b border-white/10 pb-2">
-                                <span className="text-xs font-bold opacity-60 uppercase">{m.label}</span>
-                                <span className="text-xl font-black text-accent">{m.val}</span>
-                            </div>
-                        ))}
-                    </div>
-                </Card>
-
-                <Card className="p-10">
-                    <h2 className="text-xl font-bold text-primary mb-8 uppercase tracking-widest">Feedback Terminal</h2>
-                    <div className="space-y-6">
-                        <div>
-                            <label className="text-[10px] font-bold text-text-secondary uppercase mb-4 block">Overall Rating</label>
-                            <div className="flex gap-2">
-                                {[1,2,3,4,5].map(s => <div key={s} className={`w-8 h-8 rounded-lg border-2 flex items-center justify-center font-bold text-xs cursor-pointer transition-all ${s <= 4 ? 'border-accent bg-accent text-white' : 'border-gray-100 text-gray-200 hover:border-accent hover:text-accent'}`}>{s}</div>)}
-                            </div>
-                        </div>
-                        <Input label="Point of Friction" placeholder="What was confusing?" />
-                        <Input label="System Strengths" placeholder="What worked well?" />
-                        <Button variant="accent" fullWidth className="mt-4">Submit Evaluation</Button>
-                    </div>
-                </Card>
-            </div>
-        </div>
-    );
-};
