@@ -1,5 +1,5 @@
 import React, { useState, createContext, useContext } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   LayoutDashboard, Users, CalendarCheck, GraduationCap, Bell, Settings,
   LogOut, Menu, X, Plus, Search, Download, AlertCircle,
